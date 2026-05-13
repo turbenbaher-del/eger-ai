@@ -8,6 +8,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.3/babel.min.js"></script>
@@ -42,6 +43,7 @@
   });
   const auth = firebase.auth();
   const db = firebase.firestore();
+  const storage = firebase.storage();
 
   /* ── Icons ── */
   const ic = (paths, extra={}) => ({ size=24, color='currentColor', style }) => (
@@ -74,6 +76,7 @@
   const Newspaper=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>);
   const LogOut=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>);
   const Plus=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
+  const Camera=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>);
   const XIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
   const RefreshCw=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
 
@@ -464,11 +467,15 @@
       <div style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",marginBottom:12,animation:"fadeUp .3s ease"}}>
         {!isUser&&<div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",boxShadow:`0 0 14px ${C.accentGlow}`}}><Fish size={17} color="#07111e"/></div>}
         <div style={{maxWidth:"78%",padding:"11px 15px",borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px",background:isUser?`linear-gradient(135deg,#1a8a50,${C.accent})`:"rgba(255,255,255,0.07)",border:isUser?"none":`1px solid ${C.border}`,color:isUser?"#07111e":C.text,fontSize:13.5,lineHeight:1.6,fontWeight:isUser?600:400,backdropFilter:"blur(12px)",whiteSpace:"pre-wrap"}}>
-          {msg.text.replace(/\*/g,"").split(/(https?:\/\/[^\s\n]+)/g).map((part,i)=>
-            part.match(/^https?:\/\//)
-              ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{color:isUser?"#07111e":C.accent,textDecoration:"underline",wordBreak:"break-all"}}>{part}</a>
-              : part
-          )}
+          {msg.text.replace(/\*/g,"").split(/(https?:\/\/[^\s\n]+)/g).map((part,i)=>{
+            if(!part.match(/^https?:\/\//)) return part;
+            const isMaps = part.includes("maps.google") || part.includes("google.com/maps");
+            const isWB   = part.includes("wildberries");
+            const isOzon = part.includes("ozon.ru");
+            const isYM   = part.includes("market.yandex");
+            const label  = isMaps?"📍 Открыть на карте →":isWB?"🛒 Wildberries →":isOzon?"🛒 Ozon →":isYM?"🛒 Яндекс Маркет →":part;
+            return <span key={i} onClick={()=>window.open(part,"_blank","noopener,noreferrer")} style={{display:"inline-block",color:C.accent,textDecoration:"underline",cursor:"pointer",wordBreak:"break-all",fontWeight:isMaps||isWB||isOzon||isYM?700:400}}>{label}</span>;
+          })}
           <div style={{fontSize:10,marginTop:5,opacity:.5,textAlign:"right",color:isUser?"#07111e":C.text}}>{msg.time}</div>
         </div>
       </div>
@@ -704,16 +711,57 @@
     {id:6,title:"Открытие сезона спортивной рыбалки на Мёртвом Донце",date:"1 мая 2026",source:"ФРР Ростовской области",text:"15 мая состоятся официальные соревнования по ловле карпа на Мёртвом Донце. Регистрация команд до 13 мая.",tag:"Соревнования"},
   ];
   function NewsScreen({ user, onLogin }) {
-    const [tab,setTab]=useState("news"); const [reports,setReports]=useState([]); const [showForm,setShowForm]=useState(false); const [form,setForm]=useState({title:"",body:"",location:"",fish:""}); const [posting,setPosting]=useState(false);
-    useEffect(()=>{ const u=db.collection("reports").orderBy("timestamp","desc").limit(30).onSnapshot(s=>{setReports(s.docs.map(d=>({id:d.id,...d.data()})));}); return u; },[]);
-    const submitReport=async()=>{
-      if(!form.title||!form.body) return;
-      if(!user){onLogin();return;}
-      setPosting(true);
-      await db.collection("reports").add({...form,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
-      setForm({title:"",body:"",location:"",fish:""}); setShowForm(false); setPosting(false);
+    const [tab,setTab]=useState("news");
+    const [reports,setReports]=useState([]);
+    const [reportsErr,setReportsErr]=useState(false);
+    const [showForm,setShowForm]=useState(false);
+    const [editTarget,setEditTarget]=useState(null);
+    const [form,setForm]=useState({title:"",body:"",location:"",fish:""});
+    const [photoFile,setPhotoFile]=useState(null);
+    const [photoPreview,setPhotoPreview]=useState(null);
+    const [posting,setPosting]=useState(false);
+    const [uploadPct,setUploadPct]=useState(null);
+
+    useEffect(()=>{
+      const unsub=db.collection("reports").orderBy("timestamp","desc").limit(50)
+        .onSnapshot(s=>{setReports(s.docs.map(d=>({id:d.id,...d.data()}))); setReportsErr(false);},
+          err=>{console.error("Reports:",err); setReportsErr(true);});
+      return unsub;
+    },[]);
+
+    const openCreate=()=>{ if(!user){onLogin();return;} setEditTarget(null); setForm({title:"",body:"",location:"",fish:""}); setPhotoFile(null); setPhotoPreview(null); setShowForm(true); };
+    const openEdit=r=>{ setEditTarget(r); setForm({title:r.title||"",body:r.body||"",location:r.location||"",fish:r.fish||""}); setPhotoPreview(r.photo_url||null); setPhotoFile(null); setShowForm(true); };
+
+    const onFileChange=e=>{ const f=e.target.files[0]; if(!f)return; setPhotoFile(f); const rd=new FileReader(); rd.onload=ev=>setPhotoPreview(ev.target.result); rd.readAsDataURL(f); };
+
+    const uploadPhoto=async uid=>{
+      if(!photoFile) return null;
+      const ref=storage.ref(`reports/${uid}_${Date.now()}.jpg`);
+      const task=ref.put(photoFile);
+      await new Promise((res,rej)=>task.on("state_changed",snap=>setUploadPct(Math.round(snap.bytesTransferred/snap.totalBytes*100)),rej,res));
+      setUploadPct(null);
+      return await ref.getDownloadURL();
     };
+
+    const submitReport=async()=>{
+      if(!form.title||!form.body||!user) return;
+      setPosting(true);
+      try {
+        let photo_url=editTarget?.photo_url||null;
+        if(photoFile) photo_url=await uploadPhoto(user.uid);
+        const data={...form,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp(),...(photo_url?{photo_url}:{})};
+        if(editTarget) await db.collection("reports").doc(editTarget.id).update(data);
+        else await db.collection("reports").add(data);
+        setShowForm(false); setForm({title:"",body:"",location:"",fish:""}); setPhotoFile(null); setPhotoPreview(null); setEditTarget(null);
+      } catch(e){ alert("Ошибка: "+e.message); }
+      setPosting(false);
+    };
+
+    const deleteReport=async id=>{ if(!window.confirm("Удалить отчёт?")) return; await db.collection("reports").doc(id).delete(); };
+
     const tagColor=t=>({Официально:"#2ecc71",Гидрология:C.cyan,Запрет:"#ef4444",Клёв:C.gold,Аналитика:C.blue,Соревнования:"#a78bfa"}[t]||C.muted);
+    const srcLabel=s=>s==="telegram"?"📱 Telegram":s==="telegram_chat"?"💬 Из чата":null;
+
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{padding:"10px 16px 0",borderBottom:`1px solid ${C.border}`}}>
@@ -724,28 +772,64 @@
         <div style={{flex:1,overflowY:"auto",padding:"12px 14px"}}>
           {tab==="news"&&<div>{NEWS_ITEMS.map(n=>(<div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span><span style={{fontSize:10,color:C.dimmer}}>{n.date}</span></div><div style={{fontSize:14,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:6}}>{n.title}</div><div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:8}}>{n.text}</div><div style={{fontSize:10,color:C.dimmer}}>Источник: {n.source}</div></div>))}</div>}
           {tab==="reports"&&<div>
-            <button onClick={()=>user?setShowForm(true):onLogin()} style={{width:"100%",padding:"13px",borderRadius:14,border:`1px dashed ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            <button onClick={openCreate} style={{width:"100%",padding:"13px",borderRadius:14,border:`1px dashed ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               <Plus size={16} color={C.accent}/> Добавить отчёт о рыбалке
             </button>
-            {reports.length===0&&!showForm&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><Fish size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Отчётов пока нет — будь первым!</div></div>}
-            {reports.map(r=>(<div key={r.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#07111e"}}>{(r.displayName||"Р")[0].toUpperCase()}</div><span style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.displayName}</span></div>
-                <span style={{fontSize:10,color:C.dimmer}}>{r.timestamp?fmtDate(r.timestamp):""}</span>
-              </div>
-              <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>{r.title}</div>
-              {r.location&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}><MapPin size={11} color={C.muted}/><span style={{fontSize:11,color:C.muted}}>{r.location}</span></div>}
-              {r.fish&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6}}><Fish size={11} color={C.gold}/><span style={{fontSize:11,color:C.gold}}>{r.fish}</span></div>}
-              <div style={{fontSize:13,color:"rgba(232,244,240,.8)",lineHeight:1.6}}>{r.body}</div>
-            </div>))}
+            {reportsErr&&<div style={{padding:"12px 14px",borderRadius:12,background:"rgba(239,68,68,.1)",border:"1px solid #ef444444",color:"#ef4444",fontSize:12,marginBottom:12}}>⚠️ Ошибка загрузки отчётов. Нужно обновить правила Firestore — разреши read для коллекции reports.</div>}
+            {reports.length===0&&!reportsErr&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><Fish size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Отчётов пока нет — будь первым!</div></div>}
+            {reports.map(r=>{
+              const isOwn=user&&r.uid===user.uid;
+              const sl=srcLabel(r.source);
+              return (<div key={r.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#07111e",flexShrink:0}}>{(r.displayName||"Р")[0].toUpperCase()}</div>
+                    <div><div style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.displayName}</div>{sl&&<div style={{fontSize:10,color:C.muted}}>{sl}</div>}</div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,color:C.dimmer}}>{r.timestamp?fmtDate(r.timestamp):""}</span>
+                    {isOwn&&<button onClick={()=>openEdit(r)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 7px",color:C.accent,fontSize:11,cursor:"pointer",lineHeight:1}}>✏️</button>}
+                    {isOwn&&<button onClick={()=>deleteReport(r.id)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"3px 7px",color:"#ef4444",fontSize:11,cursor:"pointer",lineHeight:1}}>🗑</button>}
+                  </div>
+                </div>
+                {r.photo_url&&<img src={r.photo_url} alt="улов" onClick={()=>window.open(r.photo_url,"_blank")} style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:10,marginBottom:10,cursor:"pointer",display:"block"}}/>}
+                <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>{r.title}</div>
+                {r.location&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}><MapPin size={11} color={C.muted}/><span style={{fontSize:11,color:C.muted}}>{r.location}</span></div>}
+                {r.fish&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6}}><Fish size={11} color={C.gold}/><span style={{fontSize:11,color:C.gold}}>{r.fish}</span></div>}
+                <div style={{fontSize:13,color:"rgba(232,244,240,.8)",lineHeight:1.6}}>{r.body}</div>
+              </div>);
+            })}
           </div>}
         </div>
-        {showForm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:100,display:"flex",alignItems:"flex-end",animation:"fadeIn .2s ease"}}>
-          <div style={{...glass(),width:"100%",maxWidth:430,margin:"0 auto",borderRadius:"20px 20px 0 0",padding:20,maxHeight:"85dvh",overflowY:"auto"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><span style={{fontSize:16,fontWeight:800,color:C.text}}>Новый отчёт</span><button onClick={()=>setShowForm(false)} style={{background:"none",border:"none",cursor:"pointer"}}><XIcon size={22} color={C.muted}/></button></div>
-            {[{key:"title",ph:"Заголовок (обязательно)"},{key:"location",ph:"Место рыбалки"},{key:"fish",ph:"Что поймал"}].map(({key,ph})=>(<input key={key} value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} placeholder={ph} style={{width:"100%",padding:"12px 14px",borderRadius:12,marginBottom:10,background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none"}} onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>))}
-            <textarea rows={4} value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} placeholder="Расскажи подробнее: снасти, насадка, время клёва..." style={{width:"100%",resize:"none",padding:"12px 14px",borderRadius:12,marginBottom:14,background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none",lineHeight:1.5}} onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>
-            <button onClick={submitReport} disabled={!form.title||!form.body||posting} style={{width:"100%",padding:"14px",borderRadius:14,border:"none",cursor:"pointer",background:form.title&&form.body?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surface,color:form.title&&form.body?"#07111e":C.muted,fontSize:15,fontWeight:800}}>{posting?"Публикуем...":"Опубликовать отчёт"}</button>
+
+        {showForm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:100,display:"flex",alignItems:"flex-end",animation:"fadeIn .2s ease"}} onClick={e=>{if(e.target===e.currentTarget)setShowForm(false);}}>
+          <div style={{...glass(),width:"100%",maxWidth:430,margin:"0 auto",borderRadius:"20px 20px 0 0",padding:20,maxHeight:"90dvh",overflowY:"auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <span style={{fontSize:16,fontWeight:800,color:C.text}}>{editTarget?"Редактировать":"Новый отчёт"}</span>
+              <button onClick={()=>setShowForm(false)} style={{background:"none",border:"none",cursor:"pointer"}}><XIcon size={22} color={C.muted}/></button>
+            </div>
+            {[{key:"title",ph:"Заголовок (обязательно)"},{key:"location",ph:"Место рыбалки"},{key:"fish",ph:"Что поймал (вид, вес, штук)"}].map(({key,ph})=>(
+              <input key={key} value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} placeholder={ph}
+                style={{width:"100%",padding:"12px 14px",borderRadius:12,marginBottom:10,background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none"}}
+                onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>
+            ))}
+            <textarea rows={4} value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} placeholder="Расскажи подробнее: снасти, насадка, время клёва..."
+              style={{width:"100%",resize:"none",padding:"12px 14px",borderRadius:12,marginBottom:10,background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none",lineHeight:1.5}}
+              onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>
+            <div style={{marginBottom:14}}>
+              {photoPreview&&<img src={photoPreview} alt="preview" style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:10,marginBottom:8,display:"block"}}/>}
+              <label style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:12,border:`1px dashed ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                <Camera size={16} color={C.accent}/>{photoPreview?"Сменить фото":"Добавить фото улова"}
+                <input type="file" accept="image/*" onChange={onFileChange} style={{display:"none"}}/>
+              </label>
+              {uploadPct!==null&&<div style={{marginTop:6,height:4,borderRadius:4,background:C.surface}}><div style={{height:4,borderRadius:4,background:C.accent,width:`${uploadPct}%`,transition:"width .2s"}}/></div>}
+            </div>
+            <button onClick={submitReport} disabled={!form.title||!form.body||posting}
+              style={{width:"100%",padding:"14px",borderRadius:14,border:"none",cursor:"pointer",
+                background:form.title&&form.body?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surface,
+                color:form.title&&form.body?"#07111e":C.muted,fontSize:15,fontWeight:800}}>
+              {posting?(uploadPct!==null?`Фото ${uploadPct}%...`:"Публикуем..."):editTarget?"Сохранить":"Опубликовать"}
+            </button>
           </div>
         </div>}
       </div>
