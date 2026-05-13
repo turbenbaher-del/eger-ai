@@ -631,6 +631,7 @@
           </div>}
           {msg.type==="voice"&&<VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isUser} col={C.accent}/>}
           {(msg.text||(!msg.type||msg.type==="text"))&&msg.type!=="voice"&&<div style={{padding:"11px 15px",borderRadius:br,background:bg,border:isUser?"none":`1px solid ${C.border}`,color:col,fontSize:13.5,lineHeight:1.6,fontWeight:isUser?600:400,backdropFilter:"blur(12px)",whiteSpace:"pre-wrap"}}>
+            {msg.voice&&<span style={{fontSize:11,opacity:.6,marginBottom:4,display:"block"}}>🎤 голосовое</span>}
             {renderLinks(msg.text,isUser)}
             <div style={{fontSize:10,marginTop:5,opacity:.5,textAlign:"right",color:col}}>{msg.time}</div>
           </div>}
@@ -734,14 +735,12 @@
     const [input, setInput] = useState("");
     const [typing, setTyping] = useState(false);
     const [voiceRec, setVoiceRec] = useState(false);
-    const [voiceSec, setVoiceSec] = useState(0);
+    const [voiceText, setVoiceText] = useState("");
     const bottomRef = useRef(null);
     const photoRef = useRef(null);
     const camRef = useRef(null);
-    const voiceMR = useRef(null);
-    const voiceStream = useRef(null);
-    const voiceChunks = useRef([]);
-    const voiceTimer = useRef(null);
+    const srRef = useRef(null);
+    const srTextRef = useRef("");
 
     useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
 
@@ -768,35 +767,54 @@
       } catch(e){}
     };
 
-    const startVoice = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-        voiceStream.current = stream;
-        voiceChunks.current = [];
-        const mime = MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":"audio/webm";
-        const mr = new MediaRecorder(stream,{mimeType:mime});
-        mr.ondataavailable = e=>{ if(e.data&&e.data.size>0) voiceChunks.current.push(e.data); };
-        mr.onstop = async () => {
-          const blob = new Blob(voiceChunks.current,{type:mime});
-          const localUrl = URL.createObjectURL(blob);
-          setMsgs(p=>[...p,{role:"user",type:"voice",voiceUrl:localUrl,dur:voiceSec,time:fmtTime()}]);
-          setVoiceRec(false); setVoiceSec(0);
-          aiReply("Голосовое получил! Пока понимаю только текст — напиши вопрос, отвечу детально. Или пришли фото улова — разберём вместе 🎣");
-        };
-        mr.start(100);
-        voiceMR.current = mr;
-        setVoiceRec(true); setVoiceSec(0);
-        voiceTimer.current = setInterval(()=>setVoiceSec(s=>s+1),1000);
-      } catch(e){ alert("Нет доступа к микрофону"); }
+    const startVoice = () => {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        alert("Распознавание речи не поддерживается в вашем браузере. Используйте Chrome или Safari.");
+        return;
+      }
+      const rec = new SR();
+      rec.lang = "ru-RU";
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      srTextRef.current = "";
+
+      rec.onstart = () => { setVoiceRec(true); setVoiceText(""); };
+
+      rec.onresult = (e) => {
+        let interim = "", final = "";
+        for (const r of e.results) {
+          if (r.isFinal) final += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+        if (final) srTextRef.current = final;
+        setVoiceText(final || interim);
+      };
+
+      rec.onend = () => {
+        setVoiceRec(false);
+        const text = srTextRef.current.trim();
+        srTextRef.current = "";
+        setVoiceText("");
+        if (text) {
+          setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime(),voice:true}]);
+          aiReply(getBotReply(text, weather));
+        }
+      };
+
+      rec.onerror = (e) => {
+        setVoiceRec(false); setVoiceText(""); srTextRef.current = "";
+        if (e.error !== "aborted" && e.error !== "no-speech") {
+          alert("Ошибка распознавания: " + e.error);
+        }
+      };
+
+      srRef.current = rec;
+      rec.start();
     };
 
-    const stopVoice = () => {
-      if(voiceTimer.current){clearInterval(voiceTimer.current);voiceTimer.current=null;}
-      if(voiceMR.current&&voiceMR.current.state!=="inactive") voiceMR.current.stop();
-      if(voiceStream.current){voiceStream.current.getTracks().forEach(t=>t.stop());voiceStream.current=null;}
-    };
-
-    const fmt = s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+    const stopVoice = () => { srRef.current?.stop(); };
     const QUICK=["Скинь точку ловли","Прогноз клёва","Где белый амур?","Где щука?","На что ловить сазана?","Что ловится сейчас?"];
 
     return (
@@ -820,11 +838,13 @@
           {QUICK.map(q=>(<button key={q} onClick={()=>setInput(q)} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>{q}</button>))}
         </div>
 
-        {/* Запись голосового */}
-        {voiceRec&&<div style={{padding:"10px 14px",background:"rgba(239,68,68,.12)",borderTop:`1px solid #ef444433`,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",animation:"pulseGlow .8s ease infinite"}}/>
-          <span style={{color:"#ef4444",fontSize:14,fontWeight:700,flex:1}}>Запись {fmt(voiceSec)}</span>
-          <button onClick={stopVoice} style={{padding:"8px 18px",borderRadius:20,border:"none",background:"#ef4444",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Отправить</button>
+        {/* Распознавание речи */}
+        {voiceRec&&<div style={{padding:"10px 14px",background:`rgba(46,204,113,.08)`,borderTop:`1px solid rgba(46,204,113,.25)`,display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:12,height:12,borderRadius:"50%",background:C.accent,animation:"pulseGlow .6s ease infinite",flexShrink:0}}/>
+          <span style={{flex:1,fontSize:13,color:voiceText?C.text:C.muted,fontStyle:voiceText?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+            {voiceText||"Слушаю... говорите"}
+          </span>
+          <button onClick={stopVoice} style={{padding:"7px 16px",borderRadius:20,border:"none",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:13,fontWeight:800,cursor:"pointer",flexShrink:0}}>Готово</button>
         </div>}
 
         <div style={{padding:"8px 14px 14px",background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,alignItems:"flex-end"}}>
