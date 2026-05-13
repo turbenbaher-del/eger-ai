@@ -77,6 +77,8 @@
   const LogOut=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>);
   const Plus=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
   const Camera=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>);
+  const VideoIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>);
+  const PlayIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polygon points="5 3 19 12 5 21 5 3"/></svg>);
   const XIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
   const RefreshCw=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
 
@@ -649,9 +651,62 @@
   }
 
   /* ── COMMUNITY ── */
+  /* ── Circular video message player ── */
+  function VideoNote({ url, isMe, col }) {
+    const vRef = useRef(null);
+    const [playing, setPlaying] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const SIZE = 148;
+    const toggle = () => {
+      const v = vRef.current; if(!v) return;
+      if(v.paused){ v.play(); setPlaying(true); } else { v.pause(); setPlaying(false); }
+    };
+    const onTime = () => {
+      const v = vRef.current; if(!v||!v.duration) return;
+      setProgress(v.currentTime/v.duration);
+    };
+    const onEnd = () => { setPlaying(false); setProgress(0); };
+    const circ = 2*Math.PI*(SIZE/2-4);
+    return (
+      <div style={{position:"relative",width:SIZE,height:SIZE,cursor:"pointer"}} onClick={toggle}>
+        <svg style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}} width={SIZE} height={SIZE}>
+          <circle cx={SIZE/2} cy={SIZE/2} r={SIZE/2-4} fill="none" stroke={isMe?C.blue:col} strokeWidth={3} strokeOpacity={.25}/>
+          <circle cx={SIZE/2} cy={SIZE/2} r={SIZE/2-4} fill="none" stroke={isMe?C.blue:col} strokeWidth={3}
+            strokeDasharray={circ} strokeDashoffset={circ*(1-progress)} style={{transition:"stroke-dashoffset .1s linear"}}/>
+        </svg>
+        <div style={{position:"absolute",inset:4,borderRadius:"50%",overflow:"hidden",background:"#000"}}>
+          <video ref={vRef} src={url} playsInline style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
+            onTimeUpdate={onTime} onEnded={onEnd}/>
+        </div>
+        {!playing&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+          <div style={{width:38,height:38,borderRadius:"50%",background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <PlayIcon size={16} color="#fff" style={{marginLeft:3}}/>
+          </div>
+        </div>}
+      </div>
+    );
+  }
+
   function CommunityScreen({ user, onLogin }) {
-    const [messages, setMessages] = useState([]); const [input, setInput] = useState(""); const [onlineCount]=useState(Math.floor(Math.random()*8)+3);
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState("");
+    const [onlineCount] = useState(Math.floor(Math.random()*8)+3);
+    const [showRecorder, setShowRecorder] = useState(false);
+    const [recording, setRecording] = useState(false);
+    const [recSec, setRecSec] = useState(0);
+    const [videoBlob, setVideoBlob] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [uploadPct, setUploadPct] = useState(null);
+
     const bottomRef = useRef(null);
+    const mrRef = useRef(null);
+    const streamRef = useRef(null);
+    const chunksRef = useRef([]);
+    const timerRef = useRef(null);
+    const liveRef = useRef(null);
+    const previewVidRef = useRef(null);
+
     useEffect(()=>{
       const unsub=db.collection("messages").orderBy("timestamp","asc").limit(100).onSnapshot(snap=>{
         setMessages(snap.docs.map(d=>({id:d.id,...d.data()})));
@@ -659,13 +714,77 @@
       });
       return unsub;
     },[]);
+
     const send=async()=>{
       const text=input.trim(); if(!text) return;
       if(!user){onLogin();return;}
       setInput("");
-      await db.collection("messages").add({text,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
+      await db.collection("messages").add({type:"text",text,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
     };
-    const aColor=(uid)=>{const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"];let h=0;for(let c of uid)h=(h*31+c.charCodeAt(0))%cols.length;return cols[h];};
+
+    const openRecorder=async()=>{
+      if(!user){onLogin();return;}
+      setVideoBlob(null); setPreviewUrl(null); setRecording(false); setRecSec(0);
+      try {
+        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:400},height:{ideal:400}},audio:true});
+        streamRef.current=stream;
+        setShowRecorder(true);
+        setTimeout(()=>{ if(liveRef.current){liveRef.current.srcObject=stream; liveRef.current.play();} },100);
+      } catch(e){ alert("Нет доступа к камере: "+e.message); }
+    };
+
+    const startRec=()=>{
+      if(!streamRef.current) return;
+      chunksRef.current=[];
+      const mime=MediaRecorder.isTypeSupported("video/mp4")?"video/mp4":"video/webm";
+      const mr=new MediaRecorder(streamRef.current,{mimeType:mime});
+      mr.ondataavailable=e=>{ if(e.data&&e.data.size>0) chunksRef.current.push(e.data); };
+      mr.onstop=()=>{
+        const blob=new Blob(chunksRef.current,{type:mime});
+        setVideoBlob(blob);
+        const url=URL.createObjectURL(blob);
+        setPreviewUrl(url);
+        setRecording(false);
+        if(liveRef.current) liveRef.current.srcObject=null;
+        if(streamRef.current){ streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current=null; }
+        setTimeout(()=>{ if(previewVidRef.current){ previewVidRef.current.src=url; previewVidRef.current.load(); } },100);
+      };
+      mr.start(100);
+      mrRef.current=mr;
+      setRecording(true); setRecSec(0);
+      timerRef.current=setInterval(()=>{
+        setRecSec(s=>{ if(s>=59){ stopRec(); return 60; } return s+1; });
+      },1000);
+    };
+
+    const stopRec=()=>{
+      if(timerRef.current){ clearInterval(timerRef.current); timerRef.current=null; }
+      if(mrRef.current&&mrRef.current.state!=="inactive") mrRef.current.stop();
+    };
+
+    const closeRecorder=()=>{
+      stopRec();
+      if(streamRef.current){ streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current=null; }
+      setShowRecorder(false); setVideoBlob(null); setPreviewUrl(null); setRecording(false); setRecSec(0);
+    };
+
+    const sendVideo=async()=>{
+      if(!videoBlob||!user) return;
+      setUploading(true);
+      try {
+        const ext=videoBlob.type.includes("mp4")?"mp4":"webm";
+        const ref=storage.ref(`chat_videos/${user.uid}_${Date.now()}.${ext}`);
+        const task=ref.put(videoBlob,{contentType:videoBlob.type});
+        await new Promise((res,rej)=>task.on("state_changed",snap=>setUploadPct(Math.round(snap.bytesTransferred/snap.totalBytes*100)),rej,res));
+        const videoUrl=await ref.getDownloadURL();
+        await db.collection("messages").add({type:"video",videoUrl,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
+        closeRecorder();
+      } catch(e){ alert("Ошибка загрузки: "+e.message); }
+      setUploading(false); setUploadPct(null);
+    };
+
+    const aColor=uid=>{const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"];let h=0;for(let c of (uid||"x"))h=(h*31+c.charCodeAt(0))%cols.length;return cols[h];};
+
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -675,28 +794,79 @@
           </div>
           {!user&&<button onClick={onLogin} style={{padding:"6px 12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>}
         </div>
+
         <div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px"}}>
           {messages.length===0&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><MessageCircle size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Будь первым!</div></div>}
           {messages.map(msg=>{
-            const isMe=user&&msg.uid===user.uid, col=aColor(msg.uid||"x"), ts=msg.timestamp?fmtDate(msg.timestamp):"";
-            return (<div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",marginBottom:10,animation:"fadeUp .25s ease"}}>
-              {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{(msg.displayName||"Р")[0].toUpperCase()}</div>}
-              <div style={{maxWidth:"75%"}}>
-                {!isMe&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:3,paddingLeft:4}}>{msg.displayName}</div>}
-                <div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
-                  {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
+            const isMe=user&&msg.uid===user.uid, col=aColor(msg.uid), ts=msg.timestamp?fmtDate(msg.timestamp):"";
+            const isVideo=msg.type==="video"&&msg.videoUrl;
+            return (
+              <div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",marginBottom:10,animation:"fadeUp .25s ease"}}>
+                {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{(msg.displayName||"Р")[0].toUpperCase()}</div>}
+                <div style={{maxWidth:isVideo?"160px":"75%"}}>
+                  {!isMe&&!isVideo&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:3,paddingLeft:4}}>{msg.displayName}</div>}
+                  {!isMe&&isVideo&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:4,paddingLeft:4}}>{msg.displayName}</div>}
+                  {isVideo
+                    ? <div><VideoNote url={msg.videoUrl} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left",paddingLeft:isMe?0:4}}>{ts}</div></div>
+                    : <div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
+                        {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
+                      </div>
+                  }
                 </div>
               </div>
-            </div>);
+            );
           })}
           <div ref={bottomRef}/>
         </div>
+
         <div style={{padding:"8px 12px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",display:"flex",gap:8,alignItems:"flex-end"}}>
+          <button onClick={openRecorder} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+            <VideoIcon size={18} color={C.muted}/>
+          </button>
           <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder={user?"Написать в чат...":"Войдите чтобы писать..."} style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:14,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
           <button onClick={send} disabled={!input.trim()} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:input.trim()?"pointer":"not-allowed",background:input.trim()?`linear-gradient(135deg,#1a5276,${C.blue})`:C.surface,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s"}}>
             <Send size={17} color={input.trim()?"#fff":C.dimmer}/>
           </button>
         </div>
+
+        {/* ── Рекордер кружочков ── */}
+        {showRecorder&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"fadeIn .2s ease"}}>
+          <div style={{position:"absolute",top:16,right:16}}>
+            <button onClick={closeRecorder} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:"50%",width:40,height:40,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <XIcon size={20} color="#fff"/>
+            </button>
+          </div>
+
+          {/* Кружок — превью или запись */}
+          <div style={{position:"relative",width:260,height:260,marginBottom:28}}>
+            {/* Прогресс-кольцо при записи */}
+            {recording&&<svg style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}} width={260} height={260}>
+              <circle cx={130} cy={130} r={126} fill="none" stroke={C.accent} strokeWidth={4} strokeOpacity={.2}/>
+              <circle cx={130} cy={130} r={126} fill="none" stroke={C.accent} strokeWidth={4}
+                strokeDasharray={2*Math.PI*126} strokeDashoffset={2*Math.PI*126*(1-recSec/60)}
+                style={{transition:"stroke-dashoffset 1s linear"}}/>
+            </svg>}
+            <div style={{position:"absolute",inset:recording?5:0,borderRadius:"50%",overflow:"hidden",background:"#111",border:`3px solid ${recording?C.accent:previewUrl?"#2ecc71":C.border}`}}>
+              {!previewUrl&&<video ref={liveRef} muted playsInline style={{width:"100%",height:"100%",objectFit:"cover",display:"block",transform:"scaleX(-1)"}}/>}
+              {previewUrl&&<video ref={previewVidRef} src={previewUrl} loop playsInline controls style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
+            </div>
+            {recording&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",color:"#fff",fontSize:36,fontWeight:800,textShadow:"0 2px 8px rgba(0,0,0,.8)",pointerEvents:"none"}}>{60-recSec}</div>}
+          </div>
+
+          {/* Кнопки управления */}
+          {!previewUrl&&!recording&&<button onClick={startRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid ${C.accent}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+            <div style={{width:44,height:44,borderRadius:"50%",background:C.accent}}/>
+          </button>}
+          {recording&&<button onClick={stopRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid #ef4444`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+            <div style={{width:26,height:26,borderRadius:4,background:"#ef4444"}}/>
+          </button>}
+          {previewUrl&&!uploading&&<div style={{display:"flex",gap:16,marginBottom:16}}>
+            <button onClick={()=>{setPreviewUrl(null);setVideoBlob(null);setRecSec(0);openRecorder();}} style={{padding:"12px 24px",borderRadius:14,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>Переснять</button>
+            <button onClick={sendVideo} style={{padding:"12px 28px",borderRadius:14,border:"none",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:14,fontWeight:800,cursor:"pointer"}}>Отправить</button>
+          </div>}
+          {uploading&&<div style={{color:C.accent,fontSize:14,fontWeight:700}}>Загрузка {uploadPct}%...</div>}
+          <div style={{color:C.muted,fontSize:12,marginTop:8}}>{!previewUrl&&!recording?"Нажми чтобы начать запись":recording?"Нажми квадрат чтобы остановить":""}</div>
+        </div>}
       </div>
     );
   }
