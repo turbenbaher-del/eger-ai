@@ -79,6 +79,9 @@
   const Camera=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>);
   const VideoIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>);
   const PlayIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polygon points="5 3 19 12 5 21 5 3"/></svg>);
+  const PauseIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>);
+  const ImageIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>);
+  const AttachIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
   const XIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
   const RefreshCw=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
 
@@ -462,23 +465,78 @@
     );
   }
 
-  /* ── Bubble ── */
+  /* ── Ответы AI на фото ── */
+  const PHOTO_REPLIES = [
+    "Отличный улов! По размеру и форме — похоже на леща. Такие экземпляры держатся на 4–6 м у бровки старого русла. Расскажи где поймал — подскажу ещё точки рядом.",
+    "Хороший трофей! Снасть выглядит правильно настроена. Для Дона рекомендую немного уменьшить крючок — №10 вместо №8, рыба здесь осторожная в ясную погоду.",
+    "Красивое место на фото! Вижу камыш и тихую воду — это классическое карасиное и карповое место. Глубина у камыша 0.5–1.5 м, поплавочная снасть с мотылём — лучший выбор здесь.",
+    "Интересный экземпляр! Судя по окраске — сазан. Такие держатся в тихих ямах с глинистым дном. При стабильном давлении выходят на кормёжку ранним утром. Какая насадка сработала?",
+    "Вижу хорошего жереха! Это один из самых сложных трофеев на Дону. Ищи его на быстрых перекатах — там где бьёт малёк. Кастмастер 18–28 г, быстрая проводка у поверхности.",
+    "Красивый щучий трофей! Щука такого размера стоит в засаде у коряжника или затопленных кустов. Воблер-суспендер 9 см, рывковая проводка с паузой 3–4 сек — её любимый стиль атаки.",
+    "Отличное фото места! По берегу видно что течение умеренное — идеальное для фидера. Бровка на 40–50 м от берега, кормушка 80 г, прикормка с кориандром — лещ будет стоять там весь день.",
+  ];
+
+  /* ── Shared: Voice Message Player ── */
+  function VoiceMessage({ url, dur, isMe, col }) {
+    const aRef = useRef(null);
+    const [playing, setPlaying] = useState(false);
+    const [prog, setProg] = useState(0);
+    const [cur, setCur] = useState(0);
+    const [total, setTotal] = useState(dur||0);
+    const fmt = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+    const BARS = [3,5,9,14,19,22,17,11,6,8,13,20,24,16,10,6,12,18,14,8];
+    const toggle = () => {
+      const a = aRef.current; if(!a) return;
+      if(a.paused){ a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); }
+    };
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:24,background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.08)",border:isMe?"none":`1px solid ${C.border}`,minWidth:200,maxWidth:260}}>
+        <audio ref={aRef} src={url}
+          onLoadedMetadata={e=>setTotal(e.target.duration)}
+          onTimeUpdate={e=>{const a=e.target;if(a.duration){setProg(a.currentTime/a.duration);setCur(a.currentTime);}}}
+          onEnded={()=>{setPlaying(false);setProg(0);setCur(0);}}/>
+        <button onClick={toggle} style={{width:38,height:38,borderRadius:"50%",border:"none",background:isMe?C.blue:col,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          {playing?<PauseIcon size={13} color="#fff"/>:<PlayIcon size={13} color="#fff" style={{marginLeft:2}}/>}
+        </button>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"flex-end",gap:2,height:22,marginBottom:4}}>
+            {BARS.map((h,i)=><div key={i} style={{width:2.5,height:h,borderRadius:2,background:prog*BARS.length>i?(isMe?"rgba(255,255,255,.9)":col):"rgba(255,255,255,.2)",transition:"background .1s"}}/>)}
+          </div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,.45)"}}>{fmt(cur)} / {fmt(total)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Shared: render link text ── */
+  const renderLinks = (text, isUser) =>
+    (text||"").replace(/\*/g,"").split(/(https?:\/\/[^\s\n]+)/g).map((part,i)=>{
+      if(!part.match(/^https?:\/\//)) return part;
+      const isMaps=part.includes("maps.google")||part.includes("google.com/maps");
+      const isWB=part.includes("wildberries"), isOzon=part.includes("ozon.ru"), isYM=part.includes("market.yandex");
+      const label=isMaps?"📍 Открыть на карте →":isWB?"🛒 Wildberries →":isOzon?"🛒 Ozon →":isYM?"🛒 Яндекс Маркет →":part;
+      return <span key={i} onClick={()=>window.open(part,"_blank","noopener,noreferrer")} style={{display:"inline-block",color:isUser?"#07111e":C.accent,textDecoration:"underline",cursor:"pointer",wordBreak:"break-all",fontWeight:isMaps||isWB||isOzon||isYM?700:400}}>{label}</span>;
+    });
+
+  /* ── Bubble (AI chat) ── */
   function Bubble({ msg }) {
     const isUser=msg.role==="user";
+    const bg  = isUser?`linear-gradient(135deg,#1a8a50,${C.accent})`:"rgba(255,255,255,0.07)";
+    const col = isUser?"#07111e":C.text;
+    const br  = isUser?"18px 18px 4px 18px":"18px 18px 18px 4px";
     return (
       <div style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",marginBottom:12,animation:"fadeUp .3s ease"}}>
         {!isUser&&<div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",boxShadow:`0 0 14px ${C.accentGlow}`}}><Fish size={17} color="#07111e"/></div>}
-        <div style={{maxWidth:"78%",padding:"11px 15px",borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px",background:isUser?`linear-gradient(135deg,#1a8a50,${C.accent})`:"rgba(255,255,255,0.07)",border:isUser?"none":`1px solid ${C.border}`,color:isUser?"#07111e":C.text,fontSize:13.5,lineHeight:1.6,fontWeight:isUser?600:400,backdropFilter:"blur(12px)",whiteSpace:"pre-wrap"}}>
-          {msg.text.replace(/\*/g,"").split(/(https?:\/\/[^\s\n]+)/g).map((part,i)=>{
-            if(!part.match(/^https?:\/\//)) return part;
-            const isMaps = part.includes("maps.google") || part.includes("google.com/maps");
-            const isWB   = part.includes("wildberries");
-            const isOzon = part.includes("ozon.ru");
-            const isYM   = part.includes("market.yandex");
-            const label  = isMaps?"📍 Открыть на карте →":isWB?"🛒 Wildberries →":isOzon?"🛒 Ozon →":isYM?"🛒 Яндекс Маркет →":part;
-            return <span key={i} onClick={()=>window.open(part,"_blank","noopener,noreferrer")} style={{display:"inline-block",color:C.accent,textDecoration:"underline",cursor:"pointer",wordBreak:"break-all",fontWeight:isMaps||isWB||isOzon||isYM?700:400}}>{label}</span>;
-          })}
-          <div style={{fontSize:10,marginTop:5,opacity:.5,textAlign:"right",color:isUser?"#07111e":C.text}}>{msg.time}</div>
+        <div style={{maxWidth:"80%"}}>
+          {msg.type==="image"&&<div style={{marginBottom:msg.text?6:0}}>
+            <img src={msg.imageUrl} alt="" onClick={()=>window.open(msg.imageUrl,"_blank")} style={{maxWidth:"100%",maxHeight:220,borderRadius:br,display:"block",cursor:"pointer",objectFit:"cover"}}/>
+          </div>}
+          {msg.type==="voice"&&<VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isUser} col={C.accent}/>}
+          {(msg.text||(!msg.type||msg.type==="text"))&&msg.type!=="voice"&&<div style={{padding:"11px 15px",borderRadius:br,background:bg,border:isUser?"none":`1px solid ${C.border}`,color:col,fontSize:13.5,lineHeight:1.6,fontWeight:isUser?600:400,backdropFilter:"blur(12px)",whiteSpace:"pre-wrap"}}>
+            {renderLinks(msg.text,isUser)}
+            <div style={{fontSize:10,marginTop:5,opacity:.5,textAlign:"right",color:col}}>{msg.time}</div>
+          </div>}
+          {msg.type==="image"&&<div style={{fontSize:10,marginTop:3,opacity:.4,textAlign:isUser?"right":"left",color:C.text}}>{msg.time}</div>}
         </div>
       </div>
     );
@@ -574,17 +632,75 @@
 
   /* ── AI CHAT ── */
   function ChatScreen({ weather }) {
-    const [msgs, setMsgs] = useState([{role:"assistant",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места, насадки — отвечу честно как настоящий егерь 🎣",time:fmtTime()}]);
-    const [input, setInput] = useState(""); const [typing, setTyping] = useState(false);
+    const [msgs, setMsgs] = useState([{role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime()}]);
+    const [input, setInput] = useState("");
+    const [typing, setTyping] = useState(false);
+    const [voiceRec, setVoiceRec] = useState(false);
+    const [voiceSec, setVoiceSec] = useState(0);
     const bottomRef = useRef(null);
+    const photoRef = useRef(null);
+    const camRef = useRef(null);
+    const voiceMR = useRef(null);
+    const voiceStream = useRef(null);
+    const voiceChunks = useRef([]);
+    const voiceTimer = useRef(null);
+
     useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
+
+    const aiReply = (text, delay=1400) => {
+      setTyping(true);
+      setTimeout(()=>{ setTyping(false); setMsgs(p=>[...p,{role:"assistant",type:"text",text,time:fmtTime()}]); }, delay+Math.random()*600);
+    };
+
     const send = useCallback(()=>{
       const text=input.trim(); if(!text) return;
-      setMsgs(p=>[...p,{role:"user",text,time:fmtTime()}]);
-      setInput(""); setTyping(true);
-      setTimeout(()=>{ setTyping(false); setMsgs(p=>[...p,{role:"assistant",text:getBotReply(text,weather),time:fmtTime()}]); }, 1200+Math.random()*800);
+      setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime()}]);
+      setInput("");
+      aiReply(getBotReply(text,weather));
     },[input,weather]);
+
+    const sendPhoto = async (file) => {
+      if(!file) return;
+      const localUrl = URL.createObjectURL(file);
+      setMsgs(p=>[...p,{role:"user",type:"image",imageUrl:localUrl,time:fmtTime()}]);
+      aiReply(pick(PHOTO_REPLIES), 1800);
+      try {
+        const ref = storage.ref(`chat_photos/egер_${Date.now()}.jpg`);
+        await ref.put(file,{contentType:file.type});
+      } catch(e){}
+    };
+
+    const startVoice = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+        voiceStream.current = stream;
+        voiceChunks.current = [];
+        const mime = MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":"audio/webm";
+        const mr = new MediaRecorder(stream,{mimeType:mime});
+        mr.ondataavailable = e=>{ if(e.data&&e.data.size>0) voiceChunks.current.push(e.data); };
+        mr.onstop = async () => {
+          const blob = new Blob(voiceChunks.current,{type:mime});
+          const localUrl = URL.createObjectURL(blob);
+          setMsgs(p=>[...p,{role:"user",type:"voice",voiceUrl:localUrl,dur:voiceSec,time:fmtTime()}]);
+          setVoiceRec(false); setVoiceSec(0);
+          aiReply("Голосовое получил! Пока понимаю только текст — напиши вопрос, отвечу детально. Или пришли фото улова — разберём вместе 🎣");
+        };
+        mr.start(100);
+        voiceMR.current = mr;
+        setVoiceRec(true); setVoiceSec(0);
+        voiceTimer.current = setInterval(()=>setVoiceSec(s=>s+1),1000);
+      } catch(e){ alert("Нет доступа к микрофону"); }
+    };
+
+    const stopVoice = () => {
+      if(voiceTimer.current){clearInterval(voiceTimer.current);voiceTimer.current=null;}
+      if(voiceMR.current&&voiceMR.current.state!=="inactive") voiceMR.current.stop();
+      if(voiceStream.current){voiceStream.current.getTracks().forEach(t=>t.stop());voiceStream.current=null;}
+    };
+
+    const fmt = s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
     const QUICK=["Скинь точку ловли","Прогноз клёва","Где белый амур?","Где щука?","На что ловить сазана?","Что ловится сейчас?"];
+
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{padding:"10px 16px 6px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
@@ -605,14 +721,39 @@
         <div style={{display:"flex",gap:8,padding:"6px 14px",overflowX:"auto",scrollbarWidth:"none"}}>
           {QUICK.map(q=>(<button key={q} onClick={()=>setInput(q)} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>{q}</button>))}
         </div>
-        <div style={{padding:"8px 14px 14px",background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,alignItems:"flex-end"}}>
-          <div style={{flex:1,position:"relative"}}>
-            <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Спроси Егеря..." style={{width:"100%",resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:16,padding:"11px 42px 11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
-            <Mic size={17} color={C.dimmer} style={{position:"absolute",right:12,bottom:13,cursor:"pointer"}}/>
-          </div>
-          <button onClick={send} disabled={!input.trim()} style={{width:46,height:46,borderRadius:"50%",border:"none",flexShrink:0,background:input.trim()?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surface,cursor:input.trim()?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:input.trim()?`0 4px 16px ${C.accentGlow}`:"none",transition:"all .25s"}}>
-            <Send size={18} color={input.trim()?"#07111e":C.dimmer}/>
+
+        {/* Запись голосового */}
+        {voiceRec&&<div style={{padding:"10px 14px",background:"rgba(239,68,68,.12)",borderTop:`1px solid #ef444433`,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",animation:"pulseGlow .8s ease infinite"}}/>
+          <span style={{color:"#ef4444",fontSize:14,fontWeight:700,flex:1}}>Запись {fmt(voiceSec)}</span>
+          <button onClick={stopVoice} style={{padding:"8px 18px",borderRadius:20,border:"none",background:"#ef4444",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Отправить</button>
+        </div>}
+
+        <div style={{padding:"8px 14px 14px",background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,alignItems:"flex-end"}}>
+          {/* Фото из галереи */}
+          <button onClick={()=>photoRef.current?.click()} style={{width:40,height:40,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <ImageIcon size={17} color={C.muted}/>
           </button>
+          <input ref={photoRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
+          {/* Камера */}
+          <button onClick={()=>camRef.current?.click()} style={{width:40,height:40,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <Camera size={17} color={C.muted}/>
+          </button>
+          <input ref={camRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
+
+          <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+            placeholder="Спроси Егеря..." style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:16,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}}
+            onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
+
+          {input.trim()
+            ? <button onClick={send} style={{width:46,height:46,borderRadius:"50%",border:"none",flexShrink:0,background:`linear-gradient(135deg,#1a8a50,${C.accent})`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 16px ${C.accentGlow}`,transition:"all .25s"}}>
+                <Send size={18} color="#07111e"/>
+              </button>
+            : <button onClick={voiceRec?stopVoice:startVoice} style={{width:46,height:46,borderRadius:"50%",border:"none",flexShrink:0,background:voiceRec?"#ef4444":C.surfaceHi,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s",animation:voiceRec?"pulseGlow .8s ease infinite":"none"}}>
+                <Mic size={18} color={voiceRec?"#fff":C.muted}/>
+              </button>
+          }
         </div>
       </div>
     );
@@ -691,21 +832,35 @@
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
     const [onlineCount] = useState(Math.floor(Math.random()*8)+3);
-    const [showRecorder, setShowRecorder] = useState(false);
-    const [recording, setRecording] = useState(false);
-    const [recSec, setRecSec] = useState(0);
-    const [videoBlob, setVideoBlob] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState(null);
-    const [uploading, setUploading] = useState(false);
-    const [uploadPct, setUploadPct] = useState(null);
+    const [attachOpen, setAttachOpen] = useState(false);
+    // video circle state
+    const [showVideoRec, setShowVideoRec] = useState(false);
+    const [vidRec, setVidRec] = useState(false);
+    const [vidSec, setVidSec] = useState(0);
+    const [vidBlob, setVidBlob] = useState(null);
+    const [vidPreview, setVidPreview] = useState(null);
+    const [vidUploading, setVidUploading] = useState(false);
+    const [vidUpPct, setVidUpPct] = useState(null);
+    // voice state
+    const [voiceRec, setVoiceRec] = useState(false);
+    const [voiceSec, setVoiceSec] = useState(0);
+    // upload progress
+    const [mediaUploading, setMediaUploading] = useState(false);
 
     const bottomRef = useRef(null);
-    const mrRef = useRef(null);
-    const streamRef = useRef(null);
-    const chunksRef = useRef([]);
-    const timerRef = useRef(null);
+    const photoGallRef = useRef(null);
+    const photoCamRef = useRef(null);
+    const videoGallRef = useRef(null);
     const liveRef = useRef(null);
     const previewVidRef = useRef(null);
+    const vidMR = useRef(null);
+    const vidStream = useRef(null);
+    const vidChunks = useRef([]);
+    const vidTimer = useRef(null);
+    const voiceMR = useRef(null);
+    const voiceStream = useRef(null);
+    const voiceChunks = useRef([]);
+    const voiceTimer = useRef(null);
 
     useEffect(()=>{
       const unsub=db.collection("messages").orderBy("timestamp","asc").limit(100).onSnapshot(snap=>{
@@ -715,75 +870,132 @@
       return unsub;
     },[]);
 
+    const base = {uid:user?.uid,displayName:user?.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()};
+    const guardAuth = (fn) => { if(!user){onLogin();return;} fn(); };
+
+    /* ── text ── */
     const send=async()=>{
       const text=input.trim(); if(!text) return;
-      if(!user){onLogin();return;}
-      setInput("");
-      await db.collection("messages").add({type:"text",text,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
+      guardAuth(async()=>{
+        setInput("");
+        await db.collection("messages").add({...base,type:"text",text});
+      });
     };
 
-    const openRecorder=async()=>{
-      if(!user){onLogin();return;}
-      setVideoBlob(null); setPreviewUrl(null); setRecording(false); setRecSec(0);
+    /* ── upload helper ── */
+    const uploadFile=async(blob,path,contentType)=>{
+      const ref=storage.ref(path);
+      const task=ref.put(blob,{contentType});
+      await new Promise((res,rej)=>task.on("state_changed",()=>{},rej,res));
+      return await ref.getDownloadURL();
+    };
+
+    /* ── photo (gallery or camera) ── */
+    const sendPhoto=async(file)=>{
+      if(!file||!user) return;
+      setAttachOpen(false); setMediaUploading(true);
       try {
-        const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:400},height:{ideal:400}},audio:true});
-        streamRef.current=stream;
-        setShowRecorder(true);
-        setTimeout(()=>{ if(liveRef.current){liveRef.current.srcObject=stream; liveRef.current.play();} },100);
-      } catch(e){ alert("Нет доступа к камере: "+e.message); }
+        const url=await uploadFile(file,`chat_photos/${user.uid}_${Date.now()}.jpg`,file.type);
+        await db.collection("messages").add({...base,type:"image",imageUrl:url});
+      } catch(e){alert("Ошибка: "+e.message);}
+      setMediaUploading(false);
     };
 
-    const startRec=()=>{
-      if(!streamRef.current) return;
-      chunksRef.current=[];
+    /* ── video from gallery ── */
+    const sendVideoFile=async(file)=>{
+      if(!file||!user) return;
+      setAttachOpen(false); setMediaUploading(true);
+      try {
+        const ext=file.name.split(".").pop()||"mp4";
+        const url=await uploadFile(file,`chat_videos/${user.uid}_${Date.now()}.${ext}`,file.type);
+        await db.collection("messages").add({...base,type:"video",videoUrl:url});
+      } catch(e){alert("Ошибка: "+e.message);}
+      setMediaUploading(false);
+    };
+
+    /* ── video circle ── */
+    const openVideoRec=async()=>{
+      guardAuth(async()=>{
+        setAttachOpen(false);
+        setVidBlob(null); setVidPreview(null); setVidRec(false); setVidSec(0);
+        try {
+          const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:400},height:{ideal:400}},audio:true});
+          vidStream.current=s;
+          setShowVideoRec(true);
+          setTimeout(()=>{if(liveRef.current){liveRef.current.srcObject=s;liveRef.current.play();}},100);
+        } catch(e){alert("Нет камеры: "+e.message);}
+      });
+    };
+    const startVidRec=()=>{
+      if(!vidStream.current) return;
+      vidChunks.current=[];
       const mime=MediaRecorder.isTypeSupported("video/mp4")?"video/mp4":"video/webm";
-      const mr=new MediaRecorder(streamRef.current,{mimeType:mime});
-      mr.ondataavailable=e=>{ if(e.data&&e.data.size>0) chunksRef.current.push(e.data); };
+      const mr=new MediaRecorder(vidStream.current,{mimeType:mime});
+      mr.ondataavailable=e=>{if(e.data&&e.data.size>0)vidChunks.current.push(e.data);};
       mr.onstop=()=>{
-        const blob=new Blob(chunksRef.current,{type:mime});
-        setVideoBlob(blob);
-        const url=URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setRecording(false);
+        const blob=new Blob(vidChunks.current,{type:mime});
+        setVidBlob(blob); setVidPreview(URL.createObjectURL(blob)); setVidRec(false);
         if(liveRef.current) liveRef.current.srcObject=null;
-        if(streamRef.current){ streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current=null; }
-        setTimeout(()=>{ if(previewVidRef.current){ previewVidRef.current.src=url; previewVidRef.current.load(); } },100);
+        if(vidStream.current){vidStream.current.getTracks().forEach(t=>t.stop());vidStream.current=null;}
       };
-      mr.start(100);
-      mrRef.current=mr;
-      setRecording(true); setRecSec(0);
-      timerRef.current=setInterval(()=>{
-        setRecSec(s=>{ if(s>=59){ stopRec(); return 60; } return s+1; });
-      },1000);
+      mr.start(100); vidMR.current=mr;
+      setVidRec(true); setVidSec(0);
+      vidTimer.current=setInterval(()=>setVidSec(s=>{if(s>=59){stopVidRec();return 60;}return s+1;}),1000);
     };
-
-    const stopRec=()=>{
-      if(timerRef.current){ clearInterval(timerRef.current); timerRef.current=null; }
-      if(mrRef.current&&mrRef.current.state!=="inactive") mrRef.current.stop();
+    const stopVidRec=()=>{
+      if(vidTimer.current){clearInterval(vidTimer.current);vidTimer.current=null;}
+      if(vidMR.current&&vidMR.current.state!=="inactive") vidMR.current.stop();
     };
-
-    const closeRecorder=()=>{
-      stopRec();
-      if(streamRef.current){ streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current=null; }
-      setShowRecorder(false); setVideoBlob(null); setPreviewUrl(null); setRecording(false); setRecSec(0);
+    const closeVideoRec=()=>{
+      stopVidRec();
+      if(vidStream.current){vidStream.current.getTracks().forEach(t=>t.stop());vidStream.current=null;}
+      setShowVideoRec(false); setVidBlob(null); setVidPreview(null); setVidRec(false); setVidSec(0);
     };
-
-    const sendVideo=async()=>{
-      if(!videoBlob||!user) return;
-      setUploading(true);
+    const sendVideoCircle=async()=>{
+      if(!vidBlob||!user) return;
+      setVidUploading(true);
       try {
-        const ext=videoBlob.type.includes("mp4")?"mp4":"webm";
-        const ref=storage.ref(`chat_videos/${user.uid}_${Date.now()}.${ext}`);
-        const task=ref.put(videoBlob,{contentType:videoBlob.type});
-        await new Promise((res,rej)=>task.on("state_changed",snap=>setUploadPct(Math.round(snap.bytesTransferred/snap.totalBytes*100)),rej,res));
-        const videoUrl=await ref.getDownloadURL();
-        await db.collection("messages").add({type:"video",videoUrl,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
-        closeRecorder();
-      } catch(e){ alert("Ошибка загрузки: "+e.message); }
-      setUploading(false); setUploadPct(null);
+        const ext=vidBlob.type.includes("mp4")?"mp4":"webm";
+        const url=await uploadFile(vidBlob,`chat_videos/${user.uid}_${Date.now()}.${ext}`,vidBlob.type);
+        await db.collection("messages").add({...base,type:"video",videoUrl:url});
+        closeVideoRec();
+      } catch(e){alert("Ошибка: "+e.message);}
+      setVidUploading(false); setVidUpPct(null);
     };
 
-    const aColor=uid=>{const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"];let h=0;for(let c of (uid||"x"))h=(h*31+c.charCodeAt(0))%cols.length;return cols[h];};
+    /* ── voice ── */
+    const startVoice=async()=>{
+      guardAuth(async()=>{
+        try {
+          const s=await navigator.mediaDevices.getUserMedia({audio:true});
+          voiceStream.current=s; voiceChunks.current=[];
+          const mime=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":"audio/webm";
+          const mr=new MediaRecorder(s,{mimeType:mime});
+          mr.ondataavailable=e=>{if(e.data&&e.data.size>0)voiceChunks.current.push(e.data);};
+          mr.onstop=async()=>{
+            const blob=new Blob(voiceChunks.current,{type:mime});
+            const dur=voiceSec;
+            setVoiceRec(false); setVoiceSec(0);
+            try {
+              const ext=mime.includes("mp4")?"m4a":"webm";
+              const url=await uploadFile(blob,`chat_voice/${user.uid}_${Date.now()}.${ext}`,mime);
+              await db.collection("messages").add({...base,type:"voice",voiceUrl:url,dur});
+            } catch(e){alert("Ошибка: "+e.message);}
+          };
+          mr.start(100); voiceMR.current=mr;
+          setVoiceRec(true); setVoiceSec(0);
+          voiceTimer.current=setInterval(()=>setVoiceSec(s=>{if(s>=120){stopVoice();return 120;}return s+1;}),1000);
+        } catch(e){alert("Нет микрофона: "+e.message);}
+      });
+    };
+    const stopVoice=()=>{
+      if(voiceTimer.current){clearInterval(voiceTimer.current);voiceTimer.current=null;}
+      if(voiceMR.current&&voiceMR.current.state!=="inactive") voiceMR.current.stop();
+      if(voiceStream.current){voiceStream.current.getTracks().forEach(t=>t.stop());voiceStream.current=null;}
+    };
+
+    const aColor=uid=>{const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"];let h=0;for(let c of(uid||"x"))h=(h*31+c.charCodeAt(0))%cols.length;return cols[h];};
+    const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
@@ -795,23 +1007,27 @@
           {!user&&<button onClick={onLogin} style={{padding:"6px 12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>}
         </div>
 
-        <div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px"}}>
+        <div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px"}} onClick={()=>setAttachOpen(false)}>
           {messages.length===0&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><MessageCircle size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Будь первым!</div></div>}
           {messages.map(msg=>{
             const isMe=user&&msg.uid===user.uid, col=aColor(msg.uid), ts=msg.timestamp?fmtDate(msg.timestamp):"";
             const isVideo=msg.type==="video"&&msg.videoUrl;
+            const isVoice=msg.type==="voice"&&msg.voiceUrl;
+            const isImage=msg.type==="image"&&msg.imageUrl;
             return (
               <div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",marginBottom:10,animation:"fadeUp .25s ease"}}>
                 {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{(msg.displayName||"Р")[0].toUpperCase()}</div>}
                 <div style={{maxWidth:isVideo?"160px":"75%"}}>
-                  {!isMe&&!isVideo&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:3,paddingLeft:4}}>{msg.displayName}</div>}
-                  {!isMe&&isVideo&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:4,paddingLeft:4}}>{msg.displayName}</div>}
-                  {isVideo
-                    ? <div><VideoNote url={msg.videoUrl} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left",paddingLeft:isMe?0:4}}>{ts}</div></div>
-                    : <div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
-                        {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
-                      </div>
-                  }
+                  {!isMe&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:3,paddingLeft:4}}>{msg.displayName}</div>}
+                  {isVideo&&<div><VideoNote url={msg.videoUrl} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div></div>}
+                  {isVoice&&<div><VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div></div>}
+                  {isImage&&<div>
+                    <img src={msg.imageUrl} alt="" onClick={()=>window.open(msg.imageUrl,"_blank")} style={{maxWidth:220,maxHeight:200,borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",display:"block",cursor:"pointer",objectFit:"cover"}}/>
+                    <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div>
+                  </div>}
+                  {!isVideo&&!isVoice&&!isImage&&<div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
+                    {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
+                  </div>}
                 </div>
               </div>
             );
@@ -819,53 +1035,86 @@
           <div ref={bottomRef}/>
         </div>
 
+        {/* Запись голоса */}
+        {voiceRec&&<div style={{padding:"10px 14px",background:"rgba(239,68,68,.12)",borderTop:`1px solid #ef444433`,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",animation:"pulseGlow .8s ease infinite"}}/>
+          <span style={{color:"#ef4444",fontSize:14,fontWeight:700,flex:1}}>🎤 Запись {fmt(voiceSec)}</span>
+          <button onClick={stopVoice} style={{padding:"8px 18px",borderRadius:20,border:"none",background:"#ef4444",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Отправить</button>
+          <button onClick={()=>{stopVoice();}} style={{padding:"8px 14px",borderRadius:20,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.muted,fontSize:13,cursor:"pointer"}}>Отмена</button>
+        </div>}
+
+        {mediaUploading&&<div style={{padding:"8px 14px",background:C.accentDim,borderTop:`1px solid ${C.border}`,fontSize:12,color:C.accent,textAlign:"center"}}>Загружаем медиафайл...</div>}
+
+        {/* Панель вложений */}
+        {attachOpen&&<div style={{padding:"12px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.97)",display:"flex",gap:12,justifyContent:"center",animation:"slideUp .2s ease"}}>
+          {[
+            {icon:<Camera size={22} color={C.text}/>,label:"Камера",fn:()=>photoCamRef.current?.click()},
+            {icon:<ImageIcon size={22} color={C.text}/>,label:"Фото",fn:()=>photoGallRef.current?.click()},
+            {icon:<VideoIcon size={22} color={C.text}/>,label:"Видео",fn:()=>videoGallRef.current?.click()},
+            {icon:<div style={{width:22,height:22,borderRadius:"50%",background:"#ef4444",flexShrink:0}}/>,label:"Кружок",fn:openVideoRec},
+            {icon:<Mic size={22} color={C.text}/>,label:"Голос",fn:startVoice},
+          ].map(({icon,label,fn})=>(
+            <button key={label} onClick={fn} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",padding:"8px 12px",borderRadius:12}}>
+              <div style={{width:48,height:48,borderRadius:14,background:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center"}}>{icon}</div>
+              <span style={{fontSize:10,color:C.muted,fontWeight:600}}>{label}</span>
+            </button>
+          ))}
+        </div>}
+
         <div style={{padding:"8px 12px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",display:"flex",gap:8,alignItems:"flex-end"}}>
-          <button onClick={openRecorder} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
-            <VideoIcon size={18} color={C.muted}/>
+          <input ref={photoGallRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
+          <input ref={photoCamRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
+          <input ref={videoGallRef} type="file" accept="video/*" style={{display:"none"}} onChange={e=>sendVideoFile(e.target.files[0])}/>
+
+          <button onClick={()=>guardAuth(()=>setAttachOpen(o=>!o))} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:attachOpen?C.accentDim:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",transform:attachOpen?"rotate(45deg)":"none"}}>
+            <AttachIcon size={20} color={attachOpen?C.accent:C.muted}/>
           </button>
-          <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder={user?"Написать в чат...":"Войдите чтобы писать..."} style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:14,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
-          <button onClick={send} disabled={!input.trim()} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:input.trim()?"pointer":"not-allowed",background:input.trim()?`linear-gradient(135deg,#1a5276,${C.blue})`:C.surface,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s"}}>
-            <Send size={17} color={input.trim()?"#fff":C.dimmer}/>
-          </button>
+          <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+            placeholder={user?"Написать в чат...":"Войдите чтобы писать..."}
+            style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:14,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}}
+            onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
+          {input.trim()
+            ? <button onClick={send} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:`linear-gradient(135deg,#1a5276,${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s"}}>
+                <Send size={17} color="#fff"/>
+              </button>
+            : <button onClick={voiceRec?stopVoice:startVoice} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:voiceRec?"#ef4444":C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s"}}>
+                <Mic size={18} color={voiceRec?"#fff":C.muted}/>
+              </button>
+          }
         </div>
 
         {/* ── Рекордер кружочков ── */}
-        {showRecorder&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.92)",zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"fadeIn .2s ease"}}>
+        {showVideoRec&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.93)",zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",animation:"fadeIn .2s ease"}}>
           <div style={{position:"absolute",top:16,right:16}}>
-            <button onClick={closeRecorder} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:"50%",width:40,height:40,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <button onClick={closeVideoRec} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:"50%",width:40,height:40,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
               <XIcon size={20} color="#fff"/>
             </button>
           </div>
-
-          {/* Кружок — превью или запись */}
           <div style={{position:"relative",width:260,height:260,marginBottom:28}}>
-            {/* Прогресс-кольцо при записи */}
-            {recording&&<svg style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}} width={260} height={260}>
+            {vidRec&&<svg style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}} width={260} height={260}>
               <circle cx={130} cy={130} r={126} fill="none" stroke={C.accent} strokeWidth={4} strokeOpacity={.2}/>
               <circle cx={130} cy={130} r={126} fill="none" stroke={C.accent} strokeWidth={4}
-                strokeDasharray={2*Math.PI*126} strokeDashoffset={2*Math.PI*126*(1-recSec/60)}
-                style={{transition:"stroke-dashoffset 1s linear"}}/>
+                strokeDasharray={2*Math.PI*126} strokeDashoffset={2*Math.PI*126*(1-vidSec/60)} style={{transition:"stroke-dashoffset 1s linear"}}/>
             </svg>}
-            <div style={{position:"absolute",inset:recording?5:0,borderRadius:"50%",overflow:"hidden",background:"#111",border:`3px solid ${recording?C.accent:previewUrl?"#2ecc71":C.border}`}}>
-              {!previewUrl&&<video ref={liveRef} muted playsInline style={{width:"100%",height:"100%",objectFit:"cover",display:"block",transform:"scaleX(-1)"}}/>}
-              {previewUrl&&<video ref={previewVidRef} src={previewUrl} loop playsInline controls style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
+            <div style={{position:"absolute",inset:vidRec?5:0,borderRadius:"50%",overflow:"hidden",background:"#111",border:`3px solid ${vidRec?C.accent:vidPreview?"#2ecc71":C.border}`}}>
+              {!vidPreview&&<video ref={liveRef} muted playsInline style={{width:"100%",height:"100%",objectFit:"cover",display:"block",transform:"scaleX(-1)"}}/>}
+              {vidPreview&&<video ref={previewVidRef} src={vidPreview} loop playsInline controls style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>}
             </div>
-            {recording&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",color:"#fff",fontSize:36,fontWeight:800,textShadow:"0 2px 8px rgba(0,0,0,.8)",pointerEvents:"none"}}>{60-recSec}</div>}
+            {vidRec&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",color:"#fff",fontSize:36,fontWeight:800,textShadow:"0 2px 8px rgba(0,0,0,.8)",pointerEvents:"none"}}>{60-vidSec}</div>}
           </div>
-
-          {/* Кнопки управления */}
-          {!previewUrl&&!recording&&<button onClick={startRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid ${C.accent}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+          {!vidPreview&&!vidRec&&<button onClick={startVidRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid ${C.accent}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
             <div style={{width:44,height:44,borderRadius:"50%",background:C.accent}}/>
           </button>}
-          {recording&&<button onClick={stopRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid #ef4444`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+          {vidRec&&<button onClick={stopVidRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid #ef4444`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
             <div style={{width:26,height:26,borderRadius:4,background:"#ef4444"}}/>
           </button>}
-          {previewUrl&&!uploading&&<div style={{display:"flex",gap:16,marginBottom:16}}>
-            <button onClick={()=>{setPreviewUrl(null);setVideoBlob(null);setRecSec(0);openRecorder();}} style={{padding:"12px 24px",borderRadius:14,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>Переснять</button>
-            <button onClick={sendVideo} style={{padding:"12px 28px",borderRadius:14,border:"none",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:14,fontWeight:800,cursor:"pointer"}}>Отправить</button>
+          {vidPreview&&!vidUploading&&<div style={{display:"flex",gap:16,marginBottom:16}}>
+            <button onClick={()=>{setVidPreview(null);setVidBlob(null);setVidSec(0);openVideoRec();}} style={{padding:"12px 24px",borderRadius:14,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>Переснять</button>
+            <button onClick={sendVideoCircle} style={{padding:"12px 28px",borderRadius:14,border:"none",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:14,fontWeight:800,cursor:"pointer"}}>Отправить</button>
           </div>}
-          {uploading&&<div style={{color:C.accent,fontSize:14,fontWeight:700}}>Загрузка {uploadPct}%...</div>}
-          <div style={{color:C.muted,fontSize:12,marginTop:8}}>{!previewUrl&&!recording?"Нажми чтобы начать запись":recording?"Нажми квадрат чтобы остановить":""}</div>
+          {vidUploading&&<div style={{color:C.accent,fontSize:14,fontWeight:700}}>Загрузка...</div>}
+          <div style={{color:C.muted,fontSize:12,marginTop:8}}>{!vidPreview&&!vidRec?"Нажми для начала записи":vidRec?"Нажми квадрат для остановки":""}</div>
         </div>}
       </div>
     );
