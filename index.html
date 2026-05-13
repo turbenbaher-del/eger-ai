@@ -1648,6 +1648,9 @@
     const [tab, setTab] = useState("home");
     const [weather, setWeather] = useState(null);
     const [weatherLoading, setWeatherLoading] = useState(false);
+    const [unreadChat, setUnreadChat] = useState(0);
+    const [unreadNews, setUnreadNews] = useState(0);
+    const tabRef = useRef("home");
 
     useEffect(()=>{ const u=auth.onAuthStateChanged(u=>{setUser(u);setAuthLoading(false);}); return u; },[]);
 
@@ -1658,6 +1661,64 @@
     },[]);
 
     useEffect(()=>{ loadWeather(); const t=setInterval(loadWeather,10*60*1000); return()=>clearInterval(t); },[loadWeather]);
+
+    // Запрос разрешения на уведомления
+    useEffect(()=>{
+      if("Notification" in window && Notification.permission==="default"){
+        setTimeout(()=>Notification.requestPermission(), 4000);
+      }
+    },[]);
+
+    // Слушатель новых сообщений чата
+    useEffect(()=>{
+      let first=true;
+      const unsub=db.collection("messages").orderBy("timestamp","asc").limit(200)
+        .onSnapshot(snap=>{
+          if(first){ first=false; return; }
+          snap.docChanges().filter(c=>c.type==="added").forEach(c=>{
+            if(tabRef.current==="community") return;
+            const d=c.doc.data();
+            setUnreadChat(n=>n+1);
+            if("Notification" in window && Notification.permission==="granted" && !document.hasFocus()){
+              new Notification("💬 Новое сообщение в чате",{
+                body:`${d.displayName||"Рыбак"}: ${d.text||"прикрепил медиафайл"}`,
+                icon:"https://turbenbaher-del.github.io/eger-ai/fish-icon.png",
+                tag:"chat-msg",
+              });
+            }
+          });
+        });
+      return unsub;
+    },[]);
+
+    // Слушатель новых отчётов
+    useEffect(()=>{
+      let first=true;
+      const unsub=db.collection("reports").orderBy("createdAt","desc").limit(50)
+        .onSnapshot(snap=>{
+          if(first){ first=false; return; }
+          snap.docChanges().filter(c=>c.type==="added").forEach(c=>{
+            if(tabRef.current==="news") return;
+            const d=c.doc.data();
+            setUnreadNews(n=>n+1);
+            if("Notification" in window && Notification.permission==="granted" && !document.hasFocus()){
+              new Notification("🐟 Новый отчёт о рыбалке",{
+                body:`${d.author||"Рыбак"}: ${d.title||"добавил отчёт"}`,
+                icon:"https://turbenbaher-del.github.io/eger-ai/fish-icon.png",
+                tag:"report-new",
+              });
+            }
+          });
+        });
+      return unsub;
+    },[]);
+
+    const goTab=(id)=>{
+      tabRef.current=id;
+      setTab(id);
+      if(id==="community") setUnreadChat(0);
+      if(id==="news") setUnreadNews(0);
+    };
 
     if (authLoading) return (
       <div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"#07111e"}}>
@@ -1706,7 +1767,7 @@
         </header>
 
         <main style={{flex:1,overflow:"hidden",position:"relative",zIndex:1}}>
-          {tab==="home"      && <HomeScreen onGoChat={()=>setTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={setTab}/>}
+          {tab==="home"      && <HomeScreen onGoChat={()=>goTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={goTab}/>}
           {tab==="chat"      && <ChatScreen weather={weather}/>}
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="map"       && <ShopsScreen/>}
@@ -1717,13 +1778,21 @@
         <nav style={{display:"flex",background:"rgba(7,17,30,.95)",backdropFilter:"blur(24px)",borderTop:`1px solid ${C.border}`,paddingBottom:"env(safe-area-inset-bottom,6px)",position:"relative",zIndex:10}}>
           {NAV.map(({id,label,Icon})=>{
             const active=tab===id;
-            return (<button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"8px 0 6px",background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
-              {active&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:24,height:2,borderRadius:2,background:C.accent,boxShadow:`0 0 8px ${C.accent}`}}/>}
-              <div style={{width:34,height:34,borderRadius:10,background:active?C.accentDim:"transparent",border:`1px solid ${active?C.borderHi:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
-                <Icon size={17} color={active?C.accent:C.dimmer} style={active?{filter:`drop-shadow(0 0 5px ${C.accent})`}:undefined}/>
-              </div>
-              <span style={{fontSize:9,letterSpacing:.3,fontWeight:active?700:500,color:active?C.accent:C.dimmer}}>{label}</span>
-            </button>);
+            const badge=id==="community"?unreadChat:id==="news"?unreadNews:0;
+            return (
+              <button key={id} onClick={()=>goTab(id)} style={{flex:1,padding:"8px 0 6px",background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
+                {active&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:24,height:2,borderRadius:2,background:C.accent,boxShadow:`0 0 8px ${C.accent}`}}/>}
+                <div style={{position:"relative",display:"inline-flex"}}>
+                  <div style={{width:34,height:34,borderRadius:10,background:active?C.accentDim:"transparent",border:`1px solid ${active?C.borderHi:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+                    <Icon size={17} color={active?C.accent:C.dimmer} style={active?{filter:`drop-shadow(0 0 5px ${C.accent})`}:undefined}/>
+                  </div>
+                  {badge>0&&<div style={{position:"absolute",top:-4,right:-4,minWidth:16,height:16,borderRadius:8,background:"#ef4444",color:"#fff",fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px",border:"2px solid #07111e",lineHeight:1,animation:"pulseGlow .8s ease infinite"}}>
+                    {badge>99?"99+":badge}
+                  </div>}
+                </div>
+                <span style={{fontSize:9,letterSpacing:.3,fontWeight:active?700:500,color:active?C.accent:C.dimmer}}>{label}</span>
+              </button>
+            );
           })}
         </nav>
       </div>
