@@ -851,6 +851,7 @@
     const photoGallRef = useRef(null);
     const photoCamRef = useRef(null);
     const videoGallRef = useRef(null);
+    const videoCamRef = useRef(null);
     const liveRef = useRef(null);
     const previewVidRef = useRef(null);
     const vidMR = useRef(null);
@@ -1084,9 +1085,10 @@
         {/* Панель вложений */}
         {attachOpen&&<div style={{padding:"12px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.97)",display:"flex",gap:12,justifyContent:"center",animation:"slideUp .2s ease"}}>
           {[
-            {icon:<Camera size={22} color={C.text}/>,label:"Камера",fn:()=>photoCamRef.current?.click()},
-            {icon:<ImageIcon size={22} color={C.text}/>,label:"Фото",fn:()=>photoGallRef.current?.click()},
-            {icon:<VideoIcon size={22} color={C.text}/>,label:"Видео",fn:()=>videoGallRef.current?.click()},
+            {icon:<Camera size={22} color={C.text}/>,label:"Фото",fn:()=>photoCamRef.current?.click()},
+            {icon:<VideoIcon size={22} color={C.text}/>,label:"Видео",fn:()=>videoCamRef.current?.click()},
+            {icon:<ImageIcon size={22} color={C.text}/>,label:"Галерея",fn:()=>photoGallRef.current?.click()},
+            {icon:<AttachIcon size={22} color={C.text}/>,label:"Файл",fn:()=>videoGallRef.current?.click()},
             {icon:<div style={{width:22,height:22,borderRadius:"50%",background:"#ef4444",flexShrink:0}}/>,label:"Кружок",fn:openVideoRec},
             {icon:<Mic size={22} color={C.text}/>,label:"Голос",fn:startVoice},
           ].map(({icon,label,fn})=>(
@@ -1101,8 +1103,9 @@
           <input ref={photoGallRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
           <input ref={photoCamRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
           <input ref={videoGallRef} type="file" accept="video/*" style={{display:"none"}} onChange={e=>sendVideoFile(e.target.files[0])}/>
+          <input ref={videoCamRef} type="file" accept="video/*" capture="environment" style={{display:"none"}} onChange={e=>sendVideoFile(e.target.files[0])}/>
 
-          <button onClick={()=>guardAuth(()=>setAttachOpen(o=>!o))} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:attachOpen?C.accentDim:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",transform:attachOpen?"rotate(45deg)":"none"}}>
+          <button onClick={()=>{if(!user){onLogin();return;}setAttachOpen(o=>!o);}} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:attachOpen?C.accentDim:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s",transform:attachOpen?"rotate(45deg)":"none"}}>
             <AttachIcon size={20} color={attachOpen?C.accent:C.muted}/>
           </button>
           <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
