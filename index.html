@@ -870,128 +870,164 @@
       return unsub;
     },[]);
 
-    const base = {uid:user?.uid,displayName:user?.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()};
-    const guardAuth = (fn) => { if(!user){onLogin();return;} fn(); };
-
-    /* ── text ── */
-    const send=async()=>{
-      const text=input.trim(); if(!text) return;
-      guardAuth(async()=>{
-        setInput("");
-        await db.collection("messages").add({...base,type:"text",text});
-      });
-    };
+    // строит base в момент вызова (не при рендере) — избегает stale uid
+    const mkBase = () => ({
+      uid: user.uid,
+      displayName: user.displayName || "Рыбак",
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
 
     /* ── upload helper ── */
-    const uploadFile=async(blob,path,contentType)=>{
-      const ref=storage.ref(path);
-      const task=ref.put(blob,{contentType});
-      await new Promise((res,rej)=>task.on("state_changed",()=>{},rej,res));
+    const uploadFile = async (blob, path, contentType) => {
+      const ref = storage.ref(path);
+      const task = ref.put(blob, {contentType});
+      await new Promise((res, rej) => task.on("state_changed", ()=>{}, rej, res));
       return await ref.getDownloadURL();
     };
 
-    /* ── photo (gallery or camera) ── */
-    const sendPhoto=async(file)=>{
-      if(!file||!user) return;
+    /* ── text ── */
+    const send = async () => {
+      const text = input.trim(); if(!text) return;
+      if(!user){ onLogin(); return; }
+      setInput("");
+      try {
+        await db.collection("messages").add({...mkBase(), type:"text", text});
+      } catch(e) {
+        setInput(text);
+        alert("Ошибка отправки: " + e.message + "\n\nПроверь правила Firestore — разреши write для коллекции messages.");
+      }
+    };
+
+    /* ── photo ── */
+    const sendPhoto = async (file) => {
+      if(!file) return;
+      if(!user){ onLogin(); return; }
       setAttachOpen(false); setMediaUploading(true);
       try {
-        const url=await uploadFile(file,`chat_photos/${user.uid}_${Date.now()}.jpg`,file.type);
-        await db.collection("messages").add({...base,type:"image",imageUrl:url});
-      } catch(e){alert("Ошибка: "+e.message);}
+        const url = await uploadFile(file, `chat_photos/${user.uid}_${Date.now()}.jpg`, file.type||"image/jpeg");
+        await db.collection("messages").add({...mkBase(), type:"image", imageUrl:url});
+      } catch(e) {
+        alert("Ошибка загрузки фото: " + e.message + "\n\nПроверь правила Firebase Storage.");
+      }
       setMediaUploading(false);
     };
 
     /* ── video from gallery ── */
-    const sendVideoFile=async(file)=>{
-      if(!file||!user) return;
+    const sendVideoFile = async (file) => {
+      if(!file) return;
+      if(!user){ onLogin(); return; }
       setAttachOpen(false); setMediaUploading(true);
       try {
-        const ext=file.name.split(".").pop()||"mp4";
-        const url=await uploadFile(file,`chat_videos/${user.uid}_${Date.now()}.${ext}`,file.type);
-        await db.collection("messages").add({...base,type:"video",videoUrl:url});
-      } catch(e){alert("Ошибка: "+e.message);}
+        const ext = (file.name||"").split(".").pop() || "mp4";
+        const url = await uploadFile(file, `chat_videos/${user.uid}_${Date.now()}.${ext}`, file.type||"video/mp4");
+        await db.collection("messages").add({...mkBase(), type:"video", videoUrl:url});
+      } catch(e) {
+        alert("Ошибка загрузки видео: " + e.message);
+      }
       setMediaUploading(false);
     };
 
     /* ── video circle ── */
-    const openVideoRec=async()=>{
-      guardAuth(async()=>{
-        setAttachOpen(false);
-        setVidBlob(null); setVidPreview(null); setVidRec(false); setVidSec(0);
-        try {
-          const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:400},height:{ideal:400}},audio:true});
-          vidStream.current=s;
-          setShowVideoRec(true);
-          setTimeout(()=>{if(liveRef.current){liveRef.current.srcObject=s;liveRef.current.play();}},100);
-        } catch(e){alert("Нет камеры: "+e.message);}
+    const [camFacing, setCamFacing] = useState("environment");
+
+    const startCamStream = async (facing) => {
+      if(vidStream.current){ vidStream.current.getTracks().forEach(t=>t.stop()); vidStream.current=null; }
+      const s = await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:facing, width:{ideal:400}, height:{ideal:400}},
+        audio: true
       });
+      vidStream.current = s;
+      if(liveRef.current){ liveRef.current.srcObject=s; liveRef.current.play(); }
+      return s;
     };
-    const startVidRec=()=>{
+
+    const openVideoRec = async () => {
+      if(!user){ onLogin(); return; }
+      setAttachOpen(false);
+      setVidBlob(null); setVidPreview(null); setVidRec(false); setVidSec(0);
+      try {
+        await startCamStream(camFacing);
+        setShowVideoRec(true);
+      } catch(e){ alert("Нет доступа к камере: " + e.message); }
+    };
+
+    const flipCamera = async () => {
+      if(vidRec) return; // нельзя флипнуть во время записи
+      const newFacing = camFacing === "environment" ? "user" : "environment";
+      setCamFacing(newFacing);
+      try { await startCamStream(newFacing); }
+      catch(e){ alert("Не удалось переключить камеру: " + e.message); }
+    };
+
+    const startVidRec = () => {
       if(!vidStream.current) return;
-      vidChunks.current=[];
-      const mime=MediaRecorder.isTypeSupported("video/mp4")?"video/mp4":"video/webm";
-      const mr=new MediaRecorder(vidStream.current,{mimeType:mime});
-      mr.ondataavailable=e=>{if(e.data&&e.data.size>0)vidChunks.current.push(e.data);};
-      mr.onstop=()=>{
-        const blob=new Blob(vidChunks.current,{type:mime});
+      vidChunks.current = [];
+      const mime = MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" : "video/webm";
+      const mr = new MediaRecorder(vidStream.current, {mimeType:mime});
+      mr.ondataavailable = e => { if(e.data&&e.data.size>0) vidChunks.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(vidChunks.current, {type:mime});
         setVidBlob(blob); setVidPreview(URL.createObjectURL(blob)); setVidRec(false);
-        if(liveRef.current) liveRef.current.srcObject=null;
-        if(vidStream.current){vidStream.current.getTracks().forEach(t=>t.stop());vidStream.current=null;}
+        if(liveRef.current) liveRef.current.srcObject = null;
+        if(vidStream.current){ vidStream.current.getTracks().forEach(t=>t.stop()); vidStream.current=null; }
       };
-      mr.start(100); vidMR.current=mr;
+      mr.start(100); vidMR.current = mr;
       setVidRec(true); setVidSec(0);
-      vidTimer.current=setInterval(()=>setVidSec(s=>{if(s>=59){stopVidRec();return 60;}return s+1;}),1000);
+      vidTimer.current = setInterval(()=>setVidSec(s=>{ if(s>=59){stopVidRec();return 60;} return s+1; }),1000);
     };
-    const stopVidRec=()=>{
-      if(vidTimer.current){clearInterval(vidTimer.current);vidTimer.current=null;}
-      if(vidMR.current&&vidMR.current.state!=="inactive") vidMR.current.stop();
+
+    const stopVidRec = () => {
+      if(vidTimer.current){ clearInterval(vidTimer.current); vidTimer.current=null; }
+      if(vidMR.current && vidMR.current.state!=="inactive") vidMR.current.stop();
     };
-    const closeVideoRec=()=>{
+
+    const closeVideoRec = () => {
       stopVidRec();
-      if(vidStream.current){vidStream.current.getTracks().forEach(t=>t.stop());vidStream.current=null;}
+      if(vidStream.current){ vidStream.current.getTracks().forEach(t=>t.stop()); vidStream.current=null; }
       setShowVideoRec(false); setVidBlob(null); setVidPreview(null); setVidRec(false); setVidSec(0);
     };
-    const sendVideoCircle=async()=>{
+
+    const sendVideoCircle = async () => {
       if(!vidBlob||!user) return;
       setVidUploading(true);
       try {
-        const ext=vidBlob.type.includes("mp4")?"mp4":"webm";
-        const url=await uploadFile(vidBlob,`chat_videos/${user.uid}_${Date.now()}.${ext}`,vidBlob.type);
-        await db.collection("messages").add({...base,type:"video",videoUrl:url});
+        const ext = vidBlob.type.includes("mp4") ? "mp4" : "webm";
+        const url = await uploadFile(vidBlob, `chat_videos/${user.uid}_${Date.now()}.${ext}`, vidBlob.type);
+        await db.collection("messages").add({...mkBase(), type:"video", videoUrl:url});
         closeVideoRec();
-      } catch(e){alert("Ошибка: "+e.message);}
-      setVidUploading(false); setVidUpPct(null);
+      } catch(e){ alert("Ошибка: " + e.message + "\n\nПроверь правила Firebase Storage."); }
+      setVidUploading(false);
     };
 
     /* ── voice ── */
-    const startVoice=async()=>{
-      guardAuth(async()=>{
-        try {
-          const s=await navigator.mediaDevices.getUserMedia({audio:true});
-          voiceStream.current=s; voiceChunks.current=[];
-          const mime=MediaRecorder.isTypeSupported("audio/mp4")?"audio/mp4":"audio/webm";
-          const mr=new MediaRecorder(s,{mimeType:mime});
-          mr.ondataavailable=e=>{if(e.data&&e.data.size>0)voiceChunks.current.push(e.data);};
-          mr.onstop=async()=>{
-            const blob=new Blob(voiceChunks.current,{type:mime});
-            const dur=voiceSec;
-            setVoiceRec(false); setVoiceSec(0);
-            try {
-              const ext=mime.includes("mp4")?"m4a":"webm";
-              const url=await uploadFile(blob,`chat_voice/${user.uid}_${Date.now()}.${ext}`,mime);
-              await db.collection("messages").add({...base,type:"voice",voiceUrl:url,dur});
-            } catch(e){alert("Ошибка: "+e.message);}
-          };
-          mr.start(100); voiceMR.current=mr;
-          setVoiceRec(true); setVoiceSec(0);
-          voiceTimer.current=setInterval(()=>setVoiceSec(s=>{if(s>=120){stopVoice();return 120;}return s+1;}),1000);
-        } catch(e){alert("Нет микрофона: "+e.message);}
-      });
+    const startVoice = async () => {
+      if(!user){ onLogin(); return; }
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({audio:true});
+        voiceStream.current = s; voiceChunks.current = [];
+        const mime = MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "audio/webm";
+        const mr = new MediaRecorder(s, {mimeType:mime});
+        mr.ondataavailable = e => { if(e.data&&e.data.size>0) voiceChunks.current.push(e.data); };
+        mr.onstop = async () => {
+          const blob = new Blob(voiceChunks.current, {type:mime});
+          const dur = voiceSec;
+          setVoiceRec(false); setVoiceSec(0);
+          try {
+            const ext = mime.includes("mp4") ? "m4a" : "webm";
+            const url = await uploadFile(blob, `chat_voice/${user.uid}_${Date.now()}.${ext}`, mime);
+            await db.collection("messages").add({...mkBase(), type:"voice", voiceUrl:url, dur});
+          } catch(e){ alert("Ошибка загрузки голосового: " + e.message); }
+        };
+        mr.start(100); voiceMR.current = mr;
+        setVoiceRec(true); setVoiceSec(0);
+        voiceTimer.current = setInterval(()=>setVoiceSec(s=>{ if(s>=120){stopVoice();return 120;} return s+1; }),1000);
+      } catch(e){ alert("Нет доступа к микрофону: " + e.message); }
     };
-    const stopVoice=()=>{
-      if(voiceTimer.current){clearInterval(voiceTimer.current);voiceTimer.current=null;}
-      if(voiceMR.current&&voiceMR.current.state!=="inactive") voiceMR.current.stop();
-      if(voiceStream.current){voiceStream.current.getTracks().forEach(t=>t.stop());voiceStream.current=null;}
+
+    const stopVoice = () => {
+      if(voiceTimer.current){ clearInterval(voiceTimer.current); voiceTimer.current=null; }
+      if(voiceMR.current && voiceMR.current.state!=="inactive") voiceMR.current.stop();
+      if(voiceStream.current){ voiceStream.current.getTracks().forEach(t=>t.stop()); voiceStream.current=null; }
     };
 
     const aColor=uid=>{const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"];let h=0;for(let c of(uid||"x"))h=(h*31+c.charCodeAt(0))%cols.length;return cols[h];};
@@ -1103,9 +1139,15 @@
             </div>
             {vidRec&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",color:"#fff",fontSize:36,fontWeight:800,textShadow:"0 2px 8px rgba(0,0,0,.8)",pointerEvents:"none"}}>{60-vidSec}</div>}
           </div>
-          {!vidPreview&&!vidRec&&<button onClick={startVidRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid ${C.accent}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
-            <div style={{width:44,height:44,borderRadius:"50%",background:C.accent}}/>
-          </button>}
+          {!vidPreview&&!vidRec&&<div style={{display:"flex",alignItems:"center",gap:24,marginBottom:16}}>
+            <div style={{width:48}}/>
+            <button onClick={startVidRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid ${C.accent}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <div style={{width:44,height:44,borderRadius:"50%",background:C.accent}}/>
+            </button>
+            <button onClick={flipCamera} style={{width:48,height:48,borderRadius:"50%",border:`1px solid ${C.border}`,background:"rgba(255,255,255,.1)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} title="Сменить камеру">
+              <span style={{fontSize:22}}>🔄</span>
+            </button>
+          </div>}
           {vidRec&&<button onClick={stopVidRec} style={{width:72,height:72,borderRadius:"50%",border:`4px solid #ef4444`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
             <div style={{width:26,height:26,borderRadius:4,background:"#ef4444"}}/>
           </button>}
