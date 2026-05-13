@@ -14,17 +14,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #root { height: 100%; background: #07111e; }
-    body { font-family: 'Nunito', sans-serif; color: #e8f4f0; overscroll-behavior: none; }
-    button, input, textarea, select { font-family: inherit; }
-    textarea::placeholder, input::placeholder { color: rgba(232,244,240,0.3); }
-    ::-webkit-scrollbar { display: none; }
-    @keyframes fadeUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html, body, #root { height:100%; background:#07111e; }
+    body { font-family:'Nunito',sans-serif; color:#e8f4f0; overscroll-behavior:none; }
+    button, input, textarea, select { font-family:inherit; }
+    textarea::placeholder, input::placeholder { color:rgba(232,244,240,0.3); }
+    ::-webkit-scrollbar { display:none; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
     @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-6px);opacity:1} }
     @keyframes pulseGlow { 0%,100%{opacity:1} 50%{opacity:.4} }
     @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
     @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
   </style>
 </head>
 <body>
@@ -32,153 +33,49 @@
 <script type="text/babel" data-presets="react">
   const { useState, useRef, useEffect, useCallback } = React;
 
-  /* ── Firebase ── */
   firebase.initializeApp({
-    apiKey: "AIzaSyDAGn8KaXwBMIkNEJ7NdjBS6lEV2JX_C-0",
-    authDomain: "eger-ai.firebaseapp.com",
-    projectId: "eger-ai",
-    storageBucket: "eger-ai.firebasestorage.app",
-    messagingSenderId: "785362609990",
-    appId: "1:785362609990:web:203c5e3edf010e732ae747"
+    apiKey:"AIzaSyDAGn8KaXwBMIkNEJ7NdjBS6lEV2JX_C-0",
+    authDomain:"eger-ai.firebaseapp.com", projectId:"eger-ai",
+    storageBucket:"eger-ai.firebasestorage.app",
+    messagingSenderId:"785362609990",
+    appId:"1:785362609990:web:203c5e3edf010e732ae747"
   });
   const auth = firebase.auth();
   const db = firebase.firestore();
 
   /* ── Icons ── */
-  const Fish = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-1.44 3.46-4.5 6-7 6-3.5 0-7-2.54-7-6z"/>
-      <path d="M18 12l4-3.5-4-3.5"/>
-      <circle cx="10" cy="12" r="1" fill={color} stroke="none"/>
-    </svg>
+  const ic = (paths, extra={}) => ({ size=24, color='currentColor', style }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
+      fill={extra.fill||"none"} stroke={color} strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" style={style}
+      dangerouslySetInnerHTML={{__html: paths}}/>
   );
-  const MapPin = ({ size=24, color='currentColor', style }) => (
+  const Fish=({size=24,color='currentColor',style})=>(
     <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/>
-      <circle cx="12" cy="10" r="3"/>
-    </svg>
-  );
-  const Droplets = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/>
-      <path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/>
-    </svg>
-  );
-  const Wind = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/>
-      <path d="M9.6 4.6A2 2 0 1 1 11 8H2"/>
-      <path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>
-    </svg>
-  );
-  const Thermometer = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-    </svg>
-  );
-  const Home = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-      <polyline points="9 22 9 12 15 12 15 22"/>
-    </svg>
-  );
-  const User = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>
-  );
-  const Send = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <line x1="22" y1="2" x2="11" y2="13"/>
-      <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-    </svg>
-  );
-  const Mic = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
-    </svg>
-  );
-  const ChevronRight = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <polyline points="9 18 15 12 9 6"/>
-    </svg>
-  );
-  const Waves = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-      <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-      <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-    </svg>
-  );
-  const Gauge = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="m12 14 4-4"/>
-      <path d="M3.34 19a10 10 0 1 1 17.32 0"/>
-    </svg>
-  );
-  const Star = ({ size=24, color='currentColor', fill='none', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill={fill}/>
-    </svg>
-  );
-  const TrendingUp = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-      <polyline points="16 7 22 7 22 13"/>
-    </svg>
-  );
-  const AlertCircle = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-  );
-  const Clock = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 6 12 12 16 14"/>
-    </svg>
-  );
-  const Anchor = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <circle cx="12" cy="5" r="3"/>
-      <line x1="12" y1="22" x2="12" y2="8"/>
-      <path d="M5 12H2a10 10 0 0 0 20 0h-3"/>
-    </svg>
-  );
-  const MessageCircle = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-    </svg>
-  );
-  const Newspaper = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
-      <path d="M18 14h-8"/><path d="M15 18h-5"/>
-      <path d="M10 6h8v4h-8V6z"/>
-    </svg>
-  );
-  const LogOut = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-      <polyline points="16 17 21 12 16 7"/>
-      <line x1="21" y1="12" x2="9" y2="12"/>
-    </svg>
-  );
-  const Plus = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-  );
-  const XIcon = ({ size=24, color='currentColor', style }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-    </svg>
-  );
+      <path d="M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.06 2.54 7 6-1.44 3.46-4.5 6-7 6-3.5 0-7-2.54-7-6z"/><path d="M18 12l4-3.5-4-3.5"/><circle cx="10" cy="12" r="1" fill={color} stroke="none"/>
+    </svg>);
+  const MapPin=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>);
+  const Droplets=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></svg>);
+  const Wind=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>);
+  const Thermometer=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>);
+  const Home=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>);
+  const User=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>);
+  const Send=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>);
+  const Mic=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>);
+  const ChevronRight=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="9 18 15 12 9 6"/></svg>);
+  const Waves=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></svg>);
+  const Gauge=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>);
+  const Star=({size=24,color='currentColor',fill='none',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill={fill}/></svg>);
+  const TrendingUp=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>);
+  const AlertCircle=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>);
+  const Clock=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>);
+  const Anchor=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>);
+  const MessageCircle=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>);
+  const Newspaper=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>);
+  const LogOut=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>);
+  const Plus=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
+  const XIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
+  const RefreshCw=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
 
   /* ── Tokens ── */
   const C = {
@@ -194,68 +91,162 @@
     ...(extra ? {boxShadow:extra} : {}),
   });
 
-  /* ── Data ── */
-  const PRESSURE_DATA = [757,758,756,759,761,760,762,761,763,762,764,763];
-  const PRESSURE_LABELS = ["8ч","","10ч","","12ч","","14ч","","16ч","","18ч",""];
-  const RESPONSES = [
-    "Слушай, я тебе скажу — сейчас Дон подымается, амур жмётся к камышовым крепям. Бери кукурузу варёную, иди на вторую дамбу к семи утра, и будешь с рыбой. Давление выровнялось — самое оно.",
-    "На Аксае сейчас вода мутновата после дождей. Лещ стоит на 4–5 метрах у старого русла. Опарыш на крючке №8, прикормка с анисом — не промахнёшься. Лучший клёв часа три до заката.",
-    "Щуку ищи у затопленных кустов на Мёртвом Донце. Воблер 7–9 см серебристый или «кровавый» — она их любит. Температура воды +17, жор начнётся часов в шесть вечера, поверь егерю.",
-    "Ветер северо-западный — карась нынче капризный. Но у камышей Левобережья в тихих заводях берёт хорошо. Мотыль или красный червь. Леску ставь не толще 0.18 — он осторожный нынче.",
-    "Давление вот уже двое суток стабильное, 762 мм. Это знак — сазан выходит кормиться! Иди на перекаты ниже Аксая, бойлы кукурузные или картошка варёная. Ранним утром, когда туман ещё лежит.",
-    "По моим наблюдениям за много лет — как вода поднимается на полметра, белый амур идёт к берегу. Сейчас именно такой момент. Молодые камышовые побеги или водоросль — лучшей насадки не найдёшь.",
-    "Судак сейчас стоит на свале — там, где глубина резко с 3 до 8 метров. Джиг 20–28 грамм, твистер белый или зелёный. Веди у самого дна, медленной ступенькой. Ночью он активнее всего.",
-  ];
-  const NEWS_ITEMS = [
-    { id:1, title:"Нерест завершён — рыбалка на Дону открыта", date:"12 мая 2026", source:"Азово-Черноморское управление Росрыболовства", text:"С 12 мая снят нерестовый запрет на большинстве водоёмов Ростовской области. Разрешена ловля всех видов рыб. Напоминаем: норма вылова 5 кг на человека в сутки.", tag:"Официально" },
-    { id:2, title:"Уровень воды в Дону поднялся на 42 см выше нормы", date:"10 мая 2026", source:"Донское бассейновое водное управление", text:"Половодье продолжается. У Аксайской пристани уровень составил 342 см над нулём поста. Прогноз — начало спада через 5–7 дней. Белый амур и карась активно кормятся у берегов.", tag:"Гидрология" },
-    { id:3, title:"Запрет на ловлю судака продлён до 20 мая", date:"5 мая 2026", source:"Рыбнадзор РО", text:"В Аксайском и Азовском районах запрет на ловлю судака продлён до 20 мая в связи с поздним нерестом. Штраф за нарушение — до 100 000 рублей.", tag:"Запрет" },
-    { id:4, title:"На Цимлянском водохранилище отличный клёв леща", date:"8 мая 2026", source:"Рыболовный клуб «Дон»", text:"Рыбаки сообщают о хорошем клёве леща на Цимлянском водохранилище. Глубина 6–8 метров, прикормка с кориандром, крючок №6 с опарышем дают стабильный результат.", tag:"Клёв" },
-    { id:5, title:"Итоги весеннего нереста в Ростовской области", date:"3 мая 2026", source:"Минприроды РО", text:"По предварительным данным, нерест 2026 года прошёл успешно. Численность молоди сазана и леща выше прошлогоднего уровня на 15%. Браконьерство снизилось на треть.", tag:"Аналитика" },
-    { id:6, title:"Открытие сезона спортивной рыбалки на Мёртвом Донце", date:"1 мая 2026", source:"ФРР Ростовской области", text:"15 мая состоятся официальные соревнования по ловле карпа на Мёртвом Донце. Регистрация команд до 13 мая на сайте rybolov-don.ru.", tag:"Соревнования" },
-  ];
-  let _ri = 0;
-  const getBotReply = (q) => {
-    const l = q.toLowerCase();
-    if (l.includes("амур")||l.includes("камыш")) return RESPONSES[5];
-    if (l.includes("щук")) return RESPONSES[2];
-    if (l.includes("лещ")||l.includes("опарыш")) return RESPONSES[1];
-    if (l.includes("карась")) return RESPONSES[3];
-    if (l.includes("сазан")||l.includes("бойл")) return RESPONSES[4];
-    if (l.includes("судак")||l.includes("джиг")) return RESPONSES[6];
-    return RESPONSES[(_ri++)%RESPONSES.length];
+  /* ── Weather fetch (Open-Meteo, бесплатно) ── */
+  async function fetchWeather() {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=47.27&longitude=39.87" +
+      "&current=temperature_2m,wind_speed_10m,surface_pressure,weather_code,relative_humidity_2m" +
+      "&wind_speed_unit=ms&timezone=Europe%2FMoscow";
+    const r = await fetch(url);
+    const d = await r.json();
+    const c = d.current;
+    const airTemp = Math.round(c.temperature_2m);
+    const month = new Date().getMonth();
+    const waterTemp = month >= 5 && month <= 8 ? airTemp - 1 : airTemp - 3;
+    const pressureMmHg = Math.round(c.surface_pressure * 0.750064);
+    return {
+      airTemp, waterTemp: Math.max(2, waterTemp),
+      wind: Math.round(c.wind_speed_10m),
+      pressure: pressureMmHg,
+      humidity: c.relative_humidity_2m,
+      code: c.weather_code,
+      updated: new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),
+    };
+  }
+
+  /* ── Bite score (давление + месяц) ── */
+  function calcBiteScore(pressure, month) {
+    let score = 7;
+    if (pressure >= 758 && pressure <= 765) score = 9;
+    else if (pressure >= 750 && pressure <= 770) score = 8;
+    else if (pressure < 745 || pressure > 775) score = 5;
+    if (month >= 4 && month <= 9) score = Math.min(10, score + 1);
+    return score;
+  }
+
+  /* ── AI ответы ── */
+  const FISH_REPLIES = {
+    амур: [
+      "Белый амур сейчас жмётся к камышовым крепям — вода поднялась и он вышел на мелководье кормиться молодыми побегами. Лучшее место — затопленные камыши на глубине 1–2 метра. Насадка: варёная кукуруза, пучок молодой травы, хлебный мякиш. Снасть — поплавочная или донка, крючок №4–6. Лучшее время: ранее утро до 9:00 и вечер после 18:00. Ведёт себя осторожно — тишина на берегу обязательна.",
+      "Амур клюёт охотно когда вода прогрелась выше +16. Иди на участки где в воду вдаётся камышовый мыс — там он ходит кругами. Лучшая насадка сейчас — початок молодой кукурузы или перловка с запахом ванили. Подсечку делай резкую — у него жёсткие губы.",
+    ],
+    щука: [
+      "Щука сейчас стоит у затопленных кустов и коряжника — ждёт добычу в засаде. Лучший выбор: воблер-суспендер 7–9 см серебристый или «кровавый», джерк на рывковой проводке. Утром она активна у берега, в жару уходит на 3–5 метров в тень. Поляризационные очки помогут увидеть стоянки.",
+      "Щуку ищи там где есть перепад глубин — с отмели на яму. Лучше всего работает колебалка 18–25г золотого цвета при утреннем освещении. Температура воды сейчас в норме для жора — не тяни, иди сейчас.",
+    ],
+    лещ: [
+      "Лещ сейчас стоит на 4–6 метрах у бровки старого русла. Снасть — фидер с кормушкой 60–80г, поводок 0.14–0.16 мм, крючок №10–12. Насадка: опарыш 2–3 штуки, мотыль, червь. Прикормка с кориандром и анисом — обязательно. Время клёва: 5:00–8:00 и 17:00–20:00. Подсечка плавная — у него мягкие губы.",
+      "Лещ после нереста активно кормится. Найди глубокий тихий плёс с илистым дном — он там. Донная снасть с тонким поводком, мотыль или навозный червь. В мутной воде лучше работает запашистая прикормка с чесноком.",
+    ],
+    карась: [
+      "Карась сейчас в камышовых заводях — любит тихую воду с илом. При северо-западном ветре капризный, лучше искать затишное место. Снасть поплавочная, леска 0.16–0.18 мм, крючок №8, мотыль или красный червь. Прикормка: хлеб+жмых+немного ванили. Клюёт с 6 до 10 утра и за 2 часа до заката.",
+      "Карась пошёл крупный! Ищи его у зарослей рогоза на глубине 0.5–1.5 метра. На манку с добавлением укропа берёт охотнее всего. Поплавок выбирай чувствительный — карась часто пробует насадку аккуратно.",
+    ],
+    сазан: [
+      "Сазан вышел на кормёжку — давление стабильное, это его любимое условие. Ищи его на перекатах с галечным или ракушечным дном ниже Аксая. Снасть — карповая донка, бойлы кукурузные 15–18 мм или варёный горох. Ставь снасть с вечера — основной жор ночью и ранним утром в тумане. Катушка с байтраннером обязательна.",
+      "Сазан любит тихие ямы с глинистым дном. При стабильном давлении выходит на кормёжку в предрассветные часы. Лучшая насадка — варёная картошка кусочком 1x1 см или бойл с ароматом слива. Леска не тоньше 0.30 — он тяжёлый и злобный при вываживании.",
+    ],
+    судак: [
+      "Судак сейчас на свале — ищи место где глубина резко меняется с 3 до 8–10 метров. Снасть — джиг 20–28г, твистер белый, зелёный или «машинное масло». Проводка — медленная ступенька у самого дна с паузой 3–4 секунды. Активнее всего ночью и в сумерки. Осторожно — судак до 20 мая под запретом в Аксайском районе!",
+      "На Дону судак жируёт у опор мостов и каменистых гряд — там всегда есть течение и мелочь. Джиговая снасть с мягкой приманкой в 7–10 см — оптимально. Атакует стремительно, подсечку делай сразу при первом тычке.",
+    ],
+    окунь: [
+      "Окунь сейчас стаями охотится на мелководье. Лучшая снасть — небольшой вертлюжок с блесной 5–7г или мормышка с твистером. Ищи его там где виден бой малька — он всегда рядом. Активен весь световой день при хорошем давлении.",
+    ],
+    карп: [
+      "Карп весной активен как никогда. Ищи его у тростниковых островов где вода прогрелась быстрее. Снасть — карповая с бойлами или пелетсом. Прикормочный стол делай за сутки до рыбалки — карп любит изученное место.",
+    ],
+    донка: [
+      "Для донки сейчас идеальные условия — вода немного мутная после дождей, рыба смелее берёт наживку. Оснастка: скользящее грузило 80–120г, поводок 0.18–0.20 мм длиной 40–60 см, крючок под приманку. Ставь 2–3 донки на разных дистанциях — 20м, 40м и 60м, чтобы найти рабочую точку.",
+    ],
+    фидер: [
+      "Фидер на Дону — классика. Сейчас работает средняя кормушка 60–80г, поводок 0.14 мм, 40 см. Прикормка: базовая смесь для течения+кориандр+мотыль. Точка прикармливания — у бровки на 40–50 метрах. Первые 30 минут — частые забросы каждые 5 минут для создания прикормочного стола.",
+    ],
+    спиннинг: [
+      "Спиннинг сейчас отлично работает по щуке и окуню. Тест 10–30г — оптимально для Дона. Воблеры класса minnow и shad в цветах «под плотву» — серебристый, оливковый, белый. Работай вдоль берега, забрасывай под нависшие деревья — там стоит хищник.",
+    ],
+    погода: [
+      "По погоде скажу так: лучший клёв — при стабильном давлении 758–765 мм рт.ст. и слабом ветре до 4 м/с. После дождя выжди сутки — вода мутная, рыба напугана. Перед грозой — часто бывает кратковременный жор за 2–3 часа. Оптимальная температура воды для большинства видов: +14–22°C.",
+    ],
+    давление: [
+      "Давление — главный фактор клёва. При росте давления лещ и карп активны, щука пассивна. При падении — хищник оживляется, мирная рыба уходит на дно. Стабильное давление 2+ суток = отличный клёв любой рыбы. Резкие перепады за 6–12 часов = рыба не берёт совсем.",
+    ],
+    прикормка: [
+      "Прикормку для Дона делай тяжёлой — течение сносит лёгкую смесь. Базовая смесь: грунт+мелкий сухарь+жмых. Ароматизаторы: кориандр и анис для леща, ваниль для карася и карпа, кровь или ржаной хлеб для хищника. Фракция мелкая — создаём мутное облако у дна без крупных кусков которые насытят рыбу.",
+    ],
+    снасти: [
+      "Для рыбалки на Дону рекомендую: поплавочная удочка 5–6м для карася и леща у берега; фидер 3.6м тест до 120г для средних дистанций; карповая снасть с байтраннером для сазана и карпа; спиннинг 2.4м тест 10–30г для щуки и судака. Леска на Дону — флюорокарбон или монофил, плетня на быстром течении нежелательна.",
+    ],
+    место: [
+      "Лучшие места Дона в Ростовской области: Вторая дамба у Аксая — лещ и сазан стабильно. Перекат у Гниловской — судак и жерех. Мёртвый Донец у Ливенцовки — щука в коряжнике. Камышовая заводь за Батайском — карась и карп. Цимлянское водохранилище — лещ на большой воде.",
+    ],
+    утро: [
+      "Раннее утро — лучшее время на Дону! С 5:00 до 8:00 активны практически все виды. Лещ выходит на кормёжку при первом свете, сазан — в тумане, карась — когда вода ещё не нагрелась. Приходи на место за 30 минут до рассвета — занимай точку и закармливай.",
+    ],
+    вечер: [
+      "Вечерний клёв на Дону с 18:00 до темноты — второй по силе после утреннего. Лещ выходит на мелководье, карась активизируется у берега, хищник начинает охоту в сумерках. После захода солнца — сомятина и судачиная рыбалка на джиг или живца.",
+    ],
+    нерест: [
+      "Нерест в Ростовской области завершился — рыба активно восстанавливает силы и жадно кормится. Это один из лучших периодов для ловли. Ограничение: судак и берш под запретом до 20 мая в некоторых районах — уточняй у местного рыбнадзора.",
+    ],
+    запрет: [
+      "Весенний нерестовый запрет в Ростовской области: с 1 марта по 31 мая нельзя ловить сетями и с лодки с мотором на расстоянии ближе 500м от нерестилищ. Спиннинг с берега разрешён. Судак и берш — запрет до 20 мая. Норма вылова: 5 кг на рыболова в сутки.",
+    ],
   };
+
+  const GENERAL_REPLIES = [
+    "Слушай, скажу честно — сейчас хороший момент. Давление стабилизировалось, вода прогрелась, рыба активно кормится после нереста. Иди на Вторую дамбу с фидером — лещ и сазан не разочаруют. Подъезжай к 5 утра, закорми точку и жди — часам к 7 будешь с рыбой.",
+    "На Аксае сейчас вода немного мутновата — это хорошо для хищника. Щука и окунь смелее берут в мутной воде. Спиннинг с ярким воблером вдоль камышовой линии — твой вариант. Лучшее время — ближайшие 2–3 часа пока вода не просветлела.",
+    "Давление растёт — верный признак что лещ выходит на бровку. Найди свал с 2 на 5 метров, поставь фидер с опарышем и кориандровой прикормкой. Поводок 0.14 мм, не толще — лещ сейчас осторожный. Первые поклёвки жди через 20–30 минут после закармливания.",
+    "По моему опыту на Дону — самое продуктивное время сейчас раннее утро. Туман на воде, тишина, сазан выходит на перекаты. Бери варёную кукурузу или горох, иди ниже Аксая на перекат — и к завтраку будешь с трофеем.",
+    "Сейчас белый амур жирует у камышей — вода поднялась и он вышел на кормовые столы. Лучшая снасть — поплавочная удочка с насадкой из молодой травы или кукурузы. Тишина на берегу критична — амур пугается любого шума.",
+    "На Мёртвом Донце сейчас отличная щука у затопленного коряжника. Джерк или воблер-суспендер, рывковая проводка с паузами по 3–4 секунды. Щука в засаде — атакует на паузе. Удачи!",
+    "Карась пошёл на нерест — после нереста жирует по 2–3 недели. Лучшее место: тихие заводи с тростником, глубина 0.5–1.5м. Поплавочная снасть, мотыль или манная болтушка. Клюёт весь световой день.",
+  ];
+
+  let _ri = 0;
+  const getBotReply = (q, weather) => {
+    const l = q.toLowerCase();
+    for (const [key, replies] of Object.entries(FISH_REPLIES)) {
+      if (l.includes(key)) return replies[Math.floor(Math.random()*replies.length)];
+    }
+    // Погодо-зависимые ответы
+    if (weather) {
+      if (l.includes("клёв") || l.includes("клевать") || l.includes("прогноз")) {
+        const score = calcBiteScore(weather.pressure, new Date().getMonth());
+        const scoreText = score >= 8 ? "отличный" : score >= 6 ? "хороший" : "слабый";
+        return `Прогноз клёва на сегодня — *${scoreText}* (${score}/10).\n\nПогода: воздух +${weather.airTemp}°C, вода +${weather.waterTemp}°C, ветер ${weather.wind} м/с, давление ${weather.pressure} мм рт.ст.\n\n${GENERAL_REPLIES[Math.floor(Math.random()*GENERAL_REPLIES.length)]}`;
+      }
+      if (l.includes("температур") || l.includes("погод")) {
+        return `Сейчас в Аксайском районе: воздух +${weather.airTemp}°C, температура воды примерно +${weather.waterTemp}°C, ветер ${weather.wind} м/с, давление ${weather.pressure} мм рт.ст. Данные обновлены в ${weather.updated}.\n\n${weather.pressure >= 755 && weather.pressure <= 768 ? "Давление в норме — рыба активна!" : "Давление нестабильное — клёв может быть слабее обычного."}`;
+      }
+    }
+    const r = GENERAL_REPLIES[_ri % GENERAL_REPLIES.length]; _ri++; return r;
+  };
+
   const fmtTime = () => new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   const fmtDate = (ts) => {
     if (!ts) return "";
     const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return d.toLocaleDateString("ru-RU",{day:"numeric",month:"short"}) + " " +
-           d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+    return d.toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+" "+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   };
+  const PRESSURE_DATA = [757,758,756,759,761,760,762,761,763,762,764,763];
 
   /* ── Sparkline ── */
   function Sparkline({ data, width=280, height=60 }) {
     const min=Math.min(...data)-2, max=Math.max(...data)+2;
-    const pts = data.map((v,i)=>{
-      const x=(i/(data.length-1))*width, y=height-((v-min)/(max-min))*height;
-      return `${x},${y}`;
-    }).join(" ");
+    const pts = data.map((v,i)=>{ const x=(i/(data.length-1))*width, y=height-((v-min)/(max-min))*height; return `${x},${y}`; }).join(" ");
     const fillPts = `0,${height} ${pts} ${width},${height}`;
     const [lx,ly] = pts.split(" ").slice(-1)[0].split(",");
     return (
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{overflow:"visible"}}>
         <defs>
           <linearGradient id="spGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={C.accent} stopOpacity="0.35"/>
-            <stop offset="100%" stopColor={C.accent} stopOpacity="0"/>
+            <stop offset="0%" stopColor={C.accent} stopOpacity="0.35"/><stop offset="100%" stopColor={C.accent} stopOpacity="0"/>
           </linearGradient>
-          <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
+          <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
         <polygon points={fillPts} fill="url(#spGrad)"/>
-        <polyline points={pts} fill="none" stroke={C.accent} strokeWidth="2"
-          strokeLinejoin="round" strokeLinecap="round" filter="url(#glow)"/>
+        <polyline points={pts} fill="none" stroke={C.accent} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" filter="url(#glow)"/>
         <circle cx={lx} cy={ly} r="4" fill={C.accent} style={{filter:`drop-shadow(0 0 6px ${C.accent})`}}/>
       </svg>
     );
@@ -263,297 +254,197 @@
 
   /* ── BiteArc ── */
   function BiteArc({ score=8 }) {
-    const pct=score/10, R=52, cx=64, cy=64;
-    const sA=Math.PI*.75, eA=Math.PI*2.25, sw=eA-sA;
-    const ang=sA+sw*pct;
-    const xy=(a)=>[cx+R*Math.cos(a), cy+R*Math.sin(a)];
-    const [bx,by]=xy(sA), [ex,ey]=xy(ang), [fx,fy]=xy(eA);
+    const pct=score/10, R=52, cx=64, cy=64, sA=Math.PI*.75, eA=Math.PI*2.25, sw=eA-sA;
+    const ang=sA+sw*pct, xy=(a)=>[cx+R*Math.cos(a),cy+R*Math.sin(a)];
+    const [bx,by]=xy(sA),[ex,ey]=xy(ang),[fx,fy]=xy(eA);
     const large=sw*pct>Math.PI?1:0, tl=(eA-sA)>Math.PI?1:0;
     const col=score>=8?C.accent:score>=5?C.gold:"#ef4444";
     return (
       <svg width={128} height={96} viewBox="0 0 128 96">
-        <defs>
-          <linearGradient id="arcGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor={col} stopOpacity="0.4"/>
-            <stop offset="100%" stopColor={col}/>
-          </linearGradient>
-        </defs>
-        <path d={`M${bx},${by} A${R},${R} 0 ${tl},1 ${fx},${fy}`}
-          stroke="rgba(255,255,255,0.08)" strokeWidth="10" fill="none" strokeLinecap="round"/>
-        {pct>0 && <path d={`M${bx},${by} A${R},${R} 0 ${large},1 ${ex},${ey}`}
-          stroke="url(#arcGrad)" strokeWidth="10" fill="none" strokeLinecap="round"
-          style={{filter:`drop-shadow(0 0 8px ${col})`}}/>}
-        <text x={cx} y={cy-4} textAnchor="middle" fill={col}
-          style={{fontSize:28,fontWeight:800,fontFamily:"'Bebas Neue',cursive",filter:`drop-shadow(0 0 10px ${col})`}}>{score}</text>
+        <defs><linearGradient id="arcGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor={col} stopOpacity="0.4"/><stop offset="100%" stopColor={col}/></linearGradient></defs>
+        <path d={`M${bx},${by} A${R},${R} 0 ${tl},1 ${fx},${fy}`} stroke="rgba(255,255,255,0.08)" strokeWidth="10" fill="none" strokeLinecap="round"/>
+        {pct>0&&<path d={`M${bx},${by} A${R},${R} 0 ${large},1 ${ex},${ey}`} stroke="url(#arcGrad)" strokeWidth="10" fill="none" strokeLinecap="round" style={{filter:`drop-shadow(0 0 8px ${col})`}}/>}
+        <text x={cx} y={cy-4} textAnchor="middle" fill={col} style={{fontSize:28,fontWeight:800,fontFamily:"'Bebas Neue',cursive",filter:`drop-shadow(0 0 10px ${col})`}}>{score}</text>
         <text x={cx} y={cy+14} textAnchor="middle" fill={C.muted} style={{fontSize:9,letterSpacing:2}}>ИЗ 10</text>
       </svg>
     );
   }
 
   /* ── WPill ── */
-  function WPill({ Icon, val, label, color=C.accent }) {
+  function WPill({ Icon, val, label, color=C.accent, loading }) {
     return (
       <div style={{...glass(),padding:"10px 8px",flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
         <Icon size={16} color={color} style={{filter:`drop-shadow(0 0 4px ${color})`}}/>
-        <span style={{fontSize:14,fontWeight:700,color:C.text}}>{val}</span>
+        <span style={{fontSize:13,fontWeight:700,color:loading?C.dimmer:C.text}}>{loading?"…":val}</span>
         <span style={{fontSize:9,color:C.dimmer,letterSpacing:1.5,textTransform:"uppercase"}}>{label}</span>
       </div>
     );
   }
 
-  /* ── WaveIcon ── */
-  function WaveIcon({ size=20 }) {
+  function WaveIcon({size=20}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none"><path d="M2 14 Q6 10 10 14 Q14 18 18 14 Q20 12 22 14" stroke={C.cyan} strokeWidth="2" strokeLinecap="round"/><path d="M2 18 Q6 14 10 18 Q14 22 18 18 Q20 16 22 18" stroke={C.cyan} strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/></svg>);}
+
+  /* ── Auth Modal ── */
+  function AuthModal({ onClose, onSuccess }) {
+    const [mode, setMode] = useState("login");
+    const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [name, setName] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+    const errMap = {"auth/email-already-in-use":"Этот email уже зарегистрирован","auth/invalid-email":"Неверный формат email","auth/weak-password":"Пароль минимум 6 символов","auth/user-not-found":"Пользователь не найден","auth/wrong-password":"Неверный пароль","auth/invalid-credential":"Неверный email или пароль"};
+    const submit = async () => {
+      if (!email||!password){setError("Заполни все поля");return;}
+      if (mode==="register"&&!name){setError("Введи имя");return;}
+      setError(""); setLoading(true);
+      try {
+        if (mode==="register"){const c=await auth.createUserWithEmailAndPassword(email,password);await c.user.updateProfile({displayName:name});}
+        else{await auth.signInWithEmailAndPassword(email,password);}
+        onSuccess?.();
+      } catch(e){setError(errMap[e.code]||e.message);}
+      setLoading(false);
+    };
+    const inp=(val,set,ph,type="text")=>(<input type={type} value={val} onChange={e=>set(e.target.value)} placeholder={ph} onKeyDown={e=>e.key==="Enter"&&submit()} style={{width:"100%",padding:"13px 16px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:`1px solid ${C.border}`,color:C.text,fontSize:15,outline:"none",marginBottom:10}} onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>);
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-        <path d="M2 14 Q6 10 10 14 Q14 18 18 14 Q20 12 22 14" stroke={C.cyan} strokeWidth="2" strokeLinecap="round"/>
-        <path d="M2 18 Q6 14 10 18 Q14 22 18 18 Q20 16 22 18" stroke={C.cyan} strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
-      </svg>
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",animation:"fadeIn .2s ease"}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+        <div style={{...glass(),width:"100%",maxWidth:430,borderRadius:"20px 20px 0 0",padding:24,animation:"slideUp .3s ease"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:36,height:36,borderRadius:10,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center"}}><Fish size={18} color="#07111e"/></div>
+              <span style={{fontSize:17,fontWeight:800,color:C.text}}>Егерь ИИ</span>
+            </div>
+            <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer"}}><XIcon size={22} color={C.muted}/></button>
+          </div>
+          <div style={{display:"flex",background:"rgba(0,0,0,.3)",borderRadius:10,padding:3,marginBottom:16}}>
+            {["login","register"].map(m=>(
+              <button key={m} onClick={()=>{setMode(m);setError("");}} style={{flex:1,padding:"9px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,background:mode===m?`linear-gradient(135deg,#1a8a50,${C.accent})`:"transparent",color:mode===m?"#07111e":C.muted,transition:"all .2s"}}>
+                {m==="login"?"Войти":"Регистрация"}
+              </button>
+            ))}
+          </div>
+          {mode==="register"&&inp(name,setName,"Твоё имя (позывной)")}
+          {inp(email,setEmail,"Email","email")}
+          {inp(password,setPassword,"Пароль","password")}
+          {error&&<div style={{background:"rgba(239,68,68,.15)",border:"1px solid rgba(239,68,68,.3)",borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:12}}>{error}</div>}
+          <button onClick={submit} disabled={loading} style={{width:"100%",padding:"14px",borderRadius:14,border:"none",cursor:"pointer",background:loading?C.surface:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:loading?C.muted:"#07111e",fontSize:15,fontWeight:800,boxShadow:loading?"none":`0 4px 20px ${C.accentGlow}`}}>
+            {loading?"Загрузка...":mode==="login"?"Войти":"Создать аккаунт"}
+          </button>
+          <div style={{textAlign:"center",marginTop:12,fontSize:12,color:C.dimmer}}>
+            Регистрация открывает чат рыбаков и публикацию отчётов
+          </div>
+        </div>
+      </div>
     );
   }
 
-  /* ── AI Chat Bubble ── */
+  /* ── Require Auth wrapper ── */
+  function RequireAuth({ user, onLogin, children }) {
+    if (user) return children;
+    return (
+      <div style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,gap:16}}>
+        <div style={{width:64,height:64,borderRadius:18,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 24px ${C.accentGlow}`}}>
+          <User size={30} color="#07111e"/>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:17,fontWeight:800,color:C.text,marginBottom:6}}>Войдите в аккаунт</div>
+          <div style={{fontSize:13,color:C.muted,lineHeight:1.6}}>Чтобы писать в чат и публиковать отчёты — нужна регистрация. Это бесплатно и займёт 30 секунд.</div>
+        </div>
+        <button onClick={onLogin} style={{padding:"14px 32px",borderRadius:14,border:"none",cursor:"pointer",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:15,fontWeight:800,boxShadow:`0 4px 20px ${C.accentGlow}`}}>
+          Войти / Зарегистрироваться
+        </button>
+      </div>
+    );
+  }
+
+  /* ── Bubble ── */
   function Bubble({ msg }) {
-    const isUser = msg.role==="user";
+    const isUser=msg.role==="user";
     return (
       <div style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",marginBottom:12,animation:"fadeUp .3s ease"}}>
-        {!isUser && (
-          <div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,
-            background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            marginRight:8,alignSelf:"flex-end",boxShadow:`0 0 14px ${C.accentGlow}`}}>
-            <Fish size={17} color="#07111e"/>
-          </div>
-        )}
-        <div style={{maxWidth:"78%",padding:"11px 15px",
-          borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px",
-          background:isUser?`linear-gradient(135deg,#1a8a50,${C.accent})`:"rgba(255,255,255,0.07)",
-          border:isUser?"none":`1px solid ${C.border}`,
-          color:isUser?"#07111e":C.text,fontSize:13.5,lineHeight:1.55,
-          fontWeight:isUser?600:400,backdropFilter:"blur(12px)"}}>
-          {msg.text}
+        {!isUser&&<div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",boxShadow:`0 0 14px ${C.accentGlow}`}}><Fish size={17} color="#07111e"/></div>}
+        <div style={{maxWidth:"78%",padding:"11px 15px",borderRadius:isUser?"18px 18px 4px 18px":"18px 18px 18px 4px",background:isUser?`linear-gradient(135deg,#1a8a50,${C.accent})`:"rgba(255,255,255,0.07)",border:isUser?"none":`1px solid ${C.border}`,color:isUser?"#07111e":C.text,fontSize:13.5,lineHeight:1.6,fontWeight:isUser?600:400,backdropFilter:"blur(12px)",whiteSpace:"pre-wrap"}}>
+          {msg.text.replace(/\*/g,"")}
           <div style={{fontSize:10,marginTop:5,opacity:.5,textAlign:"right",color:isUser?"#07111e":C.text}}>{msg.time}</div>
         </div>
       </div>
     );
   }
 
-  /* ── Typing ── */
-  function Typing() {
-    return (
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-        <div style={{width:34,height:34,borderRadius:"50%",
-          background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-          display:"flex",alignItems:"center",justifyContent:"center",
-          boxShadow:`0 0 14px ${C.accentGlow}`,flexShrink:0}}>
-          <Fish size={17} color="#07111e"/>
-        </div>
-        <div style={{padding:"12px 16px",borderRadius:"18px 18px 18px 4px",
-          background:"rgba(255,255,255,0.07)",border:`1px solid ${C.border}`,
-          display:"flex",gap:5,alignItems:"center"}}>
-          {[0,1,2].map(i=>(
-            <div key={i} style={{width:7,height:7,borderRadius:"50%",background:C.accent,
-              animation:`bounce 1.2s ease ${i*.2}s infinite`}}/>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  function Typing(){return(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><div style={{width:34,height:34,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 14px ${C.accentGlow}`,flexShrink:0}}><Fish size={17} color="#07111e"/></div><div style={{padding:"12px 16px",borderRadius:"18px 18px 18px 4px",background:"rgba(255,255,255,0.07)",border:`1px solid ${C.border}`,display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=>(<div key={i} style={{width:7,height:7,borderRadius:"50%",background:C.accent,animation:`bounce 1.2s ease ${i*.2}s infinite`}}/>))}</div></div>);}
 
-  /* ── AUTH SCREEN ── */
-  function AuthScreen() {
-    const [mode, setMode] = useState("login");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [name, setName] = useState("");
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
-
-    const errMap = {
-      "auth/email-already-in-use": "Этот email уже зарегистрирован",
-      "auth/invalid-email": "Неверный формат email",
-      "auth/weak-password": "Пароль должен быть не менее 6 символов",
-      "auth/user-not-found": "Пользователь не найден",
-      "auth/wrong-password": "Неверный пароль",
-      "auth/invalid-credential": "Неверный email или пароль",
-    };
-
-    const submit = async () => {
-      if (!email || !password) { setError("Заполни все поля"); return; }
-      if (mode==="register" && !name) { setError("Введи своё имя"); return; }
-      setError(""); setLoading(true);
-      try {
-        if (mode==="register") {
-          const cred = await auth.createUserWithEmailAndPassword(email, password);
-          await cred.user.updateProfile({ displayName: name });
-        } else {
-          await auth.signInWithEmailAndPassword(email, password);
-        }
-      } catch(e) {
-        setError(errMap[e.code] || e.message);
-      }
-      setLoading(false);
-    };
-
-    const inp = (val, set, placeholder, type="text") => (
-      <input type={type} value={val} onChange={e=>set(e.target.value)}
-        placeholder={placeholder}
-        onKeyDown={e=>e.key==="Enter"&&submit()}
-        style={{width:"100%",padding:"14px 16px",borderRadius:14,
-          background:"rgba(255,255,255,0.07)",border:`1px solid ${C.border}`,
-          color:C.text,fontSize:15,outline:"none",marginBottom:10,
-          transition:"border-color .2s"}}
-        onFocus={e=>e.target.style.borderColor=C.accent}
-        onBlur={e=>e.target.style.borderColor=C.border}/>
-    );
-
-    return (
-      <div style={{height:"100dvh",display:"flex",flexDirection:"column",alignItems:"center",
-        justifyContent:"center",padding:24,
-        background:"linear-gradient(180deg,#07111e 0%,#0a192f 100%)"}}>
-        <div style={{position:"absolute",top:-80,left:-60,width:300,height:300,borderRadius:"50%",
-          background:"radial-gradient(circle,rgba(46,204,113,.1) 0%,transparent 70%)",pointerEvents:"none"}}/>
-        <div style={{width:"100%",maxWidth:380,animation:"fadeUp .5s ease"}}>
-          <div style={{textAlign:"center",marginBottom:32}}>
-            <div style={{width:72,height:72,borderRadius:20,margin:"0 auto 16px",
-              background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-              display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:`0 8px 32px ${C.accentGlow}`}}>
-              <Fish size={36} color="#07111e"/>
-            </div>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,letterSpacing:3,
-              background:`linear-gradient(90deg,#fff 20%,${C.accent} 80%)`,
-              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-              Егерь ИИ
-            </div>
-            <div style={{fontSize:13,color:C.muted,marginTop:4}}>Умный помощник рыбака Дона</div>
-          </div>
-
-          <div style={{...glass(`0 8px 32px rgba(0,0,0,.4)`),padding:24}}>
-            <div style={{display:"flex",marginBottom:20,background:"rgba(0,0,0,.3)",borderRadius:12,padding:4}}>
-              {["login","register"].map(m=>(
-                <button key={m} onClick={()=>{setMode(m);setError("");}}
-                  style={{flex:1,padding:"10px",borderRadius:10,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,
-                    background:mode===m?`linear-gradient(135deg,#1a8a50,${C.accent})`:"transparent",
-                    color:mode===m?"#07111e":C.muted,transition:"all .2s"}}>
-                  {m==="login"?"Войти":"Регистрация"}
-                </button>
-              ))}
-            </div>
-
-            {mode==="register" && inp(name, setName, "Твоё имя (позывной)")}
-            {inp(email, setEmail, "Email", "email")}
-            {inp(password, setPassword, "Пароль", "password")}
-
-            {error && (
-              <div style={{background:"rgba(239,68,68,.15)",border:"1px solid rgba(239,68,68,.3)",
-                borderRadius:10,padding:"10px 14px",fontSize:13,color:"#fca5a5",marginBottom:12}}>
-                {error}
-              </div>
-            )}
-
-            <button onClick={submit} disabled={loading}
-              style={{width:"100%",padding:"15px",borderRadius:14,border:"none",cursor:"pointer",
-                background:loading?C.surface:`linear-gradient(135deg,#1a8a50,${C.accent})`,
-                color:loading?C.muted:"#07111e",fontSize:15,fontWeight:800,letterSpacing:.5,
-                boxShadow:loading?"none":`0 4px 20px ${C.accentGlow}`,transition:"all .25s"}}>
-              {loading ? "Загрузка..." : mode==="login" ? "Войти" : "Создать аккаунт"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── HOME SCREEN ── */
-  function HomeScreen({ onGoChat }) {
-    const spots = [
-      {name:"Вторая дамба",    fish:"Лещ, Сазан",  score:"9/10",dist:"2.3 км",Icon:Anchor},
-      {name:"Камышовая заводь",fish:"Белый амур",  score:"8/10",dist:"4.1 км",Icon:Waves},
-      {name:"Перекат у Аксая", fish:"Щука, Судак", score:"7/10",dist:"1.8 км",Icon:TrendingUp},
+  /* ── HOME ── */
+  function HomeScreen({ onGoChat, weather, weatherLoading, onRefreshWeather, setTab }) {
+    const month = new Date().getMonth();
+    const biteScore = weather ? calcBiteScore(weather.pressure, month) : 8;
+    const biteLabel = biteScore>=9?"Превосходный!":biteScore>=8?"Отличный!":biteScore>=6?"Хороший":biteScore>=4?"Средний":"Слабый";
+    const spots=[
+      {name:"Вторая дамба",fish:"Лещ, Сазан",score:"9/10",dist:"2.3 км",Icon:Anchor,coords:"47.2731, 39.8701"},
+      {name:"Камышовая заводь",fish:"Белый амур",score:"8/10",dist:"4.1 км",Icon:Waves,coords:"47.2510, 39.8420"},
+      {name:"Перекат у Аксая",fish:"Щука, Судак",score:"7/10",dist:"1.8 км",Icon:TrendingUp,coords:"47.2667, 39.8667"},
     ];
+    const PRESSURE_LABELS=["8ч","","10ч","","12ч","","14ч","","16ч","","18ч",""];
+    const pressureData = weather ? [...PRESSURE_DATA.slice(0,-1), weather.pressure] : PRESSURE_DATA;
     return (
       <div style={{padding:"0 14px",overflowY:"auto",height:"100%",paddingBottom:20}}>
-        <div style={{...glass(`0 8px 32px rgba(0,0,0,.4),0 0 0 1px ${C.borderHi}`),
-          background:"linear-gradient(135deg,rgba(46,204,113,.12) 0%,rgba(34,211,238,.08) 50%,rgba(59,130,246,.10) 100%)",
-          padding:20,marginBottom:14,position:"relative",overflow:"hidden",animation:"fadeUp .5s ease"}}>
-          <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:"50%",
-            background:"radial-gradient(circle,rgba(46,204,113,.15) 0%,transparent 70%)",pointerEvents:"none"}}/>
+        <div style={{...glass(`0 8px 32px rgba(0,0,0,.4),0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.12) 0%,rgba(34,211,238,.08) 50%,rgba(59,130,246,.10) 100%)",padding:20,marginBottom:14,position:"relative",overflow:"hidden",animation:"fadeUp .5s ease"}}>
+          <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:"50%",background:"radial-gradient(circle,rgba(46,204,113,.15) 0%,transparent 70%)",pointerEvents:"none"}}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
                 <Star size={12} color={C.gold} fill={C.gold}/>
                 <span style={{fontSize:10,color:C.gold,letterSpacing:2.5,fontWeight:700}}>ПРОГНОЗ ДНЯ</span>
+                <button onClick={onRefreshWeather} style={{background:"none",border:"none",cursor:"pointer",padding:2,marginLeft:4}}>
+                  <RefreshCw size={11} color={weatherLoading?C.accent:C.dimmer} style={weatherLoading?{animation:"spin 1s linear infinite"}:undefined}/>
+                </button>
               </div>
-              <div style={{fontSize:20,fontWeight:800,color:C.text,lineHeight:1.2}}>Отличный клёв!</div>
-              <div style={{fontSize:12,color:C.muted,marginTop:2}}>Аксайский р-н · Дон · Май 2026</div>
+              <div style={{fontSize:20,fontWeight:800,color:C.text,lineHeight:1.2}}>{biteLabel}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:2}}>Аксайский р-н · Дон · {weather?"обновлено "+weather.updated:"загрузка..."}</div>
             </div>
-            <BiteArc score={8}/>
+            <BiteArc score={biteScore}/>
           </div>
           <div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
               <span style={{fontSize:10,color:C.dimmer,letterSpacing:1.5}}>ДАВЛЕНИЕ (ммрт)</span>
-              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>763 мм↑</span>
+              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{weather?`${weather.pressure} мм`:"…"}</span>
             </div>
-            <Sparkline data={PRESSURE_DATA}/>
+            <Sparkline data={pressureData}/>
             <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-              {PRESSURE_LABELS.filter((_,i)=>i%2===0).map((l,i)=>(
-                <span key={i} style={{fontSize:9,color:C.dimmer}}>{l}</span>
-              ))}
+              {PRESSURE_LABELS.filter((_,i)=>i%2===0).map((l,i)=>(<span key={i} style={{fontSize:9,color:C.dimmer}}>{l}</span>))}
             </div>
           </div>
           <div style={{background:"rgba(0,0,0,.3)",borderRadius:14,padding:"12px 14px",borderLeft:`3px solid ${C.accent}`}}>
             <div style={{fontSize:10,color:C.accent,letterSpacing:2,fontWeight:700,marginBottom:5}}>ИИ-СОВЕТ ЕГЕРЯ</div>
             <div style={{fontSize:13,color:"rgba(232,244,240,.85)",lineHeight:1.6}}>
-              В Аксае пошёл подъём воды — амур жмётся к камышу. Бери кукурузу варёную. Давление растёт — лещ выходит на 4 метра.
+              {weather ? (weather.pressure>=758&&weather.pressure<=765 ? `Давление ${weather.pressure} мм — идеально для леща и сазана. Вода +${weather.waterTemp}°C, ветер ${weather.wind} м/с. Белый амур жмётся к камышу, бери кукурузу варёную.` : `Давление ${weather.pressure} мм, ветер ${weather.wind} м/с. Хищник активен при таком давлении — спиннинг у коряжника.`) : "Загружаю актуальный прогноз..."}
             </div>
           </div>
         </div>
-
         <div style={{display:"flex",gap:8,marginBottom:14,animation:"fadeUp .6s ease"}}>
-          <WPill Icon={Thermometer} val="+19°C" label="воздух" color={C.gold}/>
-          <WPill Icon={Droplets}    val="+17°C" label="вода"   color={C.cyan}/>
-          <WPill Icon={Wind}        val="3 м/с"  label="ветер"  color={C.blue}/>
-          <WPill Icon={Waves}       val="+40см"  label="уровень" color={C.accent}/>
+          <WPill Icon={Thermometer} val={weather?`+${weather.airTemp}°C`:"…"} label="воздух" color={C.gold} loading={weatherLoading}/>
+          <WPill Icon={Droplets}    val={weather?`+${weather.waterTemp}°C`:"…"} label="вода"   color={C.cyan} loading={weatherLoading}/>
+          <WPill Icon={Wind}        val={weather?`${weather.wind} м/с`:"…"}  label="ветер" color={C.blue} loading={weatherLoading}/>
+          <WPill Icon={Waves}       val="+40 см" label="уровень" color={C.accent}/>
         </div>
-
         <div style={{animation:"fadeUp .7s ease"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <span style={{fontSize:14,fontWeight:700,color:C.text}}>Горячие точки</span>
+            <span onClick={()=>setTab("map")} style={{fontSize:12,color:C.accent,display:"flex",alignItems:"center",gap:2,cursor:"pointer"}}>
+              На карте <ChevronRight size={13}/>
+            </span>
           </div>
           {spots.map((s,i)=>(
-            <div key={i} style={{...glass(),padding:"12px 14px",marginBottom:8,
-              display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:36,height:36,borderRadius:10,background:C.accentDim,
-                  border:`1px solid ${C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <s.Icon size={16} color={C.accent}/>
+            <a key={i} href={`https://maps.google.com/?q=${s.coords}`} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
+              <div style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:C.accentDim,border:`1px solid ${C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center"}}><s.Icon size={16} color={C.accent}/></div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:C.text}}>{s.name}</div>
+                    <div style={{fontSize:11,color:C.muted}}>{s.fish} · {s.dist}</div>
+                  </div>
                 </div>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:C.text}}>{s.name}</div>
-                  <div style={{fontSize:11,color:C.muted}}>{s.fish} · {s.dist}</div>
-                </div>
+                <div style={{background:C.accentDim,border:`1px solid ${C.borderHi}`,borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,color:C.accent}}>{s.score}</div>
               </div>
-              <div style={{background:C.accentDim,border:`1px solid ${C.borderHi}`,
-                borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,color:C.accent}}>
-                {s.score}
-              </div>
-            </div>
+            </a>
           ))}
-          <div onClick={onGoChat} style={{...glass(`0 0 0 1px ${C.borderHi}`),
-            background:"linear-gradient(135deg,rgba(46,204,113,.18),rgba(34,211,238,.10))",
-            padding:"14px 18px",marginTop:8,cursor:"pointer",
-            display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div onClick={onGoChat} style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.18),rgba(34,211,238,.10))",padding:"14px 18px",marginTop:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:38,height:38,borderRadius:11,
-                background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-                display:"flex",alignItems:"center",justifyContent:"center",
-                boxShadow:`0 4px 14px ${C.accentGlow}`}}>
-                <Fish size={19} color="#07111e"/>
-              </div>
-              <div>
-                <div style={{fontSize:13,fontWeight:700,color:C.text}}>Спроси Егеря</div>
-                <div style={{fontSize:11,color:C.muted}}>ИИ-помощник рыбака</div>
-              </div>
+              <div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 14px ${C.accentGlow}`}}><Fish size={19} color="#07111e"/></div>
+              <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Спроси Егеря</div><div style={{fontSize:11,color:C.muted}}>ИИ-помощник рыбака</div></div>
             </div>
             <ChevronRight size={18} color={C.accent}/>
           </div>
@@ -562,72 +453,45 @@
     );
   }
 
-  /* ── AI CHAT SCREEN ── */
-  function ChatScreen() {
-    const [msgs, setMsgs] = useState([{role:"assistant",
-      text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона. Спрашивай про клёв, снасти, места — ничего не скрою 🎣",
-      time:fmtTime()}]);
-    const [input, setInput] = useState("");
-    const [typing, setTyping] = useState(false);
+  /* ── AI CHAT ── */
+  function ChatScreen({ weather }) {
+    const [msgs, setMsgs] = useState([{role:"assistant",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места, насадки — отвечу честно как настоящий егерь 🎣",time:fmtTime()}]);
+    const [input, setInput] = useState(""); const [typing, setTyping] = useState(false);
     const bottomRef = useRef(null);
     useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
     const send = useCallback(()=>{
       const text=input.trim(); if(!text) return;
       setMsgs(p=>[...p,{role:"user",text,time:fmtTime()}]);
       setInput(""); setTyping(true);
-      setTimeout(()=>{
-        setTyping(false);
-        setMsgs(p=>[...p,{role:"assistant",text:getBotReply(text),time:fmtTime()}]);
-      }, 1500+Math.random()*500);
-    },[input]);
-    const QUICK=["Прогноз клёва","Белый амур","Где щука?","Давление растёт"];
+      setTimeout(()=>{ setTyping(false); setMsgs(p=>[...p,{role:"assistant",text:getBotReply(text,weather),time:fmtTime()}]); }, 1200+Math.random()*800);
+    },[input,weather]);
+    const QUICK=["Прогноз клёва","Где белый амур?","Снасти для леща","Лучшее время","Где щука?","Сазан сейчас"];
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{padding:"10px 16px 6px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:36,height:36,borderRadius:"50%",
-            background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-            display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 12px ${C.accentGlow}`}}>
-            <Fish size={17} color="#07111e"/>
-          </div>
+          <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 12px ${C.accentGlow}`}}><Fish size={17} color="#07111e"/></div>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:C.text}}>Егерь ИИ</div>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:C.accent,animation:"pulseGlow 2s ease infinite"}}/>
-              <span style={{fontSize:10,color:C.accent}}>онлайн · Знает Дон</span>
+              <span style={{fontSize:10,color:C.accent}}>онлайн · {weather?`вода +${weather.waterTemp}°C`:"Знает Дон"}</span>
             </div>
           </div>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"14px 14px 6px"}}>
           {msgs.map((m,i)=><Bubble key={i} msg={m}/>)}
-          {typing && <Typing/>}
+          {typing&&<Typing/>}
           <div ref={bottomRef}/>
         </div>
         <div style={{display:"flex",gap:8,padding:"6px 14px",overflowX:"auto",scrollbarWidth:"none"}}>
-          {QUICK.map(q=>(
-            <button key={q} onClick={()=>setInput(q)} style={{flexShrink:0,padding:"6px 12px",
-              borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,
-              color:C.accent,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>{q}</button>
-          ))}
+          {QUICK.map(q=>(<button key={q} onClick={()=>setInput(q)} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>{q}</button>))}
         </div>
-        <div style={{padding:"8px 14px 14px",background:"rgba(7,17,30,.92)",
-          backdropFilter:"blur(20px)",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,alignItems:"flex-end"}}>
+        <div style={{padding:"8px 14px 14px",background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",borderTop:`1px solid ${C.border}`,display:"flex",gap:10,alignItems:"flex-end"}}>
           <div style={{flex:1,position:"relative"}}>
-            <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
-              onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-              placeholder="Спроси Егеря..."
-              style={{width:"100%",resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,
-                borderRadius:16,padding:"11px 42px 11px 14px",color:C.text,fontSize:14,
-                outline:"none",lineHeight:1.4,boxSizing:"border-box",backdropFilter:"blur(12px)"}}
-              onFocus={e=>e.target.style.borderColor=C.borderHi}
-              onBlur={e=>e.target.style.borderColor=C.border}/>
+            <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Спроси Егеря..." style={{width:"100%",resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:16,padding:"11px 42px 11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
             <Mic size={17} color={C.dimmer} style={{position:"absolute",right:12,bottom:13,cursor:"pointer"}}/>
           </div>
-          <button onClick={send} disabled={!input.trim()} style={{width:46,height:46,borderRadius:"50%",
-            border:"none",flexShrink:0,
-            background:input.trim()?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surface,
-            cursor:input.trim()?"pointer":"not-allowed",
-            display:"flex",alignItems:"center",justifyContent:"center",
-            boxShadow:input.trim()?`0 4px 16px ${C.accentGlow}`:"none",transition:"all .25s"}}>
+          <button onClick={send} disabled={!input.trim()} style={{width:46,height:46,borderRadius:"50%",border:"none",flexShrink:0,background:input.trim()?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surface,cursor:input.trim()?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:input.trim()?`0 4px 16px ${C.accentGlow}`:"none",transition:"all .25s"}}>
             <Send size={18} color={input.trim()?"#07111e":C.dimmer}/>
           </button>
         </div>
@@ -635,114 +499,84 @@
     );
   }
 
-  /* ── COMMUNITY CHAT ── */
-  function CommunityScreen({ user }) {
-    const [messages, setMessages] = useState([]);
-    const [input, setInput] = useState("");
-    const [onlineCount] = useState(Math.floor(Math.random()*8)+3);
-    const bottomRef = useRef(null);
+  /* ── MAP ── */
+  function MapScreen() {
+    const areas=[
+      {name:"Дон — Аксайский р-н",coords:"47.2667,39.8667"},
+      {name:"Мёртвый Донец",coords:"47.1833,39.7333"},
+      {name:"Левобережные заводи",coords:"47.2200,39.7800"},
+      {name:"Цимлянское водохранилище",coords:"47.6333,42.0833"},
+      {name:"Азовское море (Таганрог)",coords:"47.2167,38.9167"},
+      {name:"Манычское водохранилище",coords:"46.8833,41.5500"},
+    ];
+    return (
+      <div style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,gap:16}}>
+        <div style={{...glass(`0 0 0 1px ${C.borderHi}`),padding:28,textAlign:"center",maxWidth:300}}>
+          <MapPin size={48} color={C.accent} style={{marginBottom:12,filter:`drop-shadow(0 0 14px ${C.accent})`,display:"block",margin:"0 auto 12px"}}/>
+          <div style={{fontSize:17,fontWeight:800,color:C.text,marginBottom:6}}>Карта водоёмов</div>
+          <div style={{fontSize:12,color:C.muted,lineHeight:1.7}}>Нажми на водоём — откроется Google Maps с точкой</div>
+        </div>
+        <div style={{...glass(),padding:12,width:"100%",maxWidth:350}}>
+          {areas.map((r,i)=>(
+            <a key={i} href={`https://maps.google.com/?q=${r.coords}`} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 8px",borderBottom:i<areas.length-1?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
+                <MapPin size={14} color={C.accent}/>
+                <span style={{fontSize:13,color:C.text,flex:1}}>{r.name}</span>
+                <ChevronRight size={13} color={C.dimmer}/>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
+  /* ── COMMUNITY ── */
+  function CommunityScreen({ user, onLogin }) {
+    const [messages, setMessages] = useState([]); const [input, setInput] = useState(""); const [onlineCount]=useState(Math.floor(Math.random()*8)+3);
+    const bottomRef = useRef(null);
     useEffect(()=>{
-      const unsub = db.collection("messages")
-        .orderBy("timestamp","asc")
-        .limit(100)
-        .onSnapshot(snap=>{
-          setMessages(snap.docs.map(d=>({id:d.id,...d.data()})));
-          setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),50);
-        });
+      const unsub=db.collection("messages").orderBy("timestamp","asc").limit(100).onSnapshot(snap=>{
+        setMessages(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),50);
+      });
       return unsub;
     },[]);
-
-    const send = async () => {
-      const text = input.trim(); if (!text) return;
+    const send=async()=>{
+      const text=input.trim(); if(!text) return;
+      if(!user){onLogin();return;}
       setInput("");
-      await db.collection("messages").add({
-        text, uid:user.uid,
-        displayName: user.displayName || "Рыбак",
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      });
+      await db.collection("messages").add({text,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
     };
-
-    const avatar = (name) => (name||"Р")[0].toUpperCase();
-    const avatarColor = (uid) => {
-      const colors = [C.accent, C.cyan, C.gold, C.blue, "#a78bfa","#f472b6"];
-      let h=0; for(let c of uid) h=(h*31+c.charCodeAt(0))%colors.length;
-      return colors[h];
-    };
-
+    const aColor=(uid)=>{const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"];let h=0;for(let c of uid)h=(h*31+c.charCodeAt(0))%cols.length;return cols[h];};
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
-        <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,
-          display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:36,height:36,borderRadius:"50%",
-              background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",
-              display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <MessageCircle size={17} color="#fff"/>
-            </div>
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:C.text}}>Чат рыбаков</div>
-              <div style={{fontSize:10,color:C.accent}}>{onlineCount} онлайн · Ростовская обл.</div>
-            </div>
+            <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><MessageCircle size={17} color="#fff"/></div>
+            <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Чат рыбаков</div><div style={{fontSize:10,color:C.accent}}>{onlineCount} онлайн · Ростовская обл.</div></div>
           </div>
+          {!user&&<button onClick={onLogin} style={{padding:"6px 12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>}
         </div>
-
         <div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px"}}>
-          {messages.length===0 && (
-            <div style={{textAlign:"center",padding:40,color:C.dimmer}}>
-              <MessageCircle size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/>
-              <div style={{fontSize:14}}>Будь первым — напиши в чат!</div>
-            </div>
-          )}
+          {messages.length===0&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><MessageCircle size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Будь первым!</div></div>}
           {messages.map(msg=>{
-            const isMe = msg.uid===user.uid;
-            const col = avatarColor(msg.uid||"x");
-            const ts = msg.timestamp ? fmtDate(msg.timestamp) : "";
-            return (
-              <div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",
-                marginBottom:10,animation:"fadeUp .25s ease"}}>
-                {!isMe && (
-                  <div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,
-                    background:`linear-gradient(135deg,${col},${col}88)`,
-                    display:"flex",alignItems:"center",justifyContent:"center",
-                    marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>
-                    {avatar(msg.displayName)}
-                  </div>
-                )}
-                <div style={{maxWidth:"75%"}}>
-                  {!isMe && <div style={{fontSize:10,color:col,fontWeight:700,marginBottom:3,paddingLeft:4}}>{msg.displayName}</div>}
-                  <div style={{padding:"10px 14px",
-                    borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",
-                    background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",
-                    border:isMe?"none":`1px solid ${C.border}`,
-                    color:C.text,fontSize:13.5,lineHeight:1.5}}>
-                    {msg.text}
-                    <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
-                  </div>
+            const isMe=user&&msg.uid===user.uid, col=aColor(msg.uid||"x"), ts=msg.timestamp?fmtDate(msg.timestamp):"";
+            return (<div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",marginBottom:10,animation:"fadeUp .25s ease"}}>
+              {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{(msg.displayName||"Р")[0].toUpperCase()}</div>}
+              <div style={{maxWidth:"75%"}}>
+                {!isMe&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:3,paddingLeft:4}}>{msg.displayName}</div>}
+                <div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
+                  {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
                 </div>
               </div>
-            );
+            </div>);
           })}
           <div ref={bottomRef}/>
         </div>
-
-        <div style={{padding:"8px 12px 14px",borderTop:`1px solid ${C.border}`,
-          background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",display:"flex",gap:8,alignItems:"flex-end"}}>
-          <div style={{flex:1}}>
-            <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
-              onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-              placeholder="Написать в чат..."
-              style={{width:"100%",resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,
-                borderRadius:14,padding:"11px 14px",color:C.text,fontSize:14,
-                outline:"none",lineHeight:1.4,boxSizing:"border-box"}}
-              onFocus={e=>e.target.style.borderColor=C.borderHi}
-              onBlur={e=>e.target.style.borderColor=C.border}/>
-          </div>
-          <button onClick={send} disabled={!input.trim()} style={{width:44,height:44,borderRadius:"50%",
-            border:"none",flexShrink:0,cursor:input.trim()?"pointer":"not-allowed",
-            background:input.trim()?`linear-gradient(135deg,#1a5276,${C.blue})`:C.surface,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            boxShadow:input.trim()?"0 4px 14px rgba(59,130,246,.5)":"none",transition:"all .25s"}}>
+        <div style={{padding:"8px 12px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",display:"flex",gap:8,alignItems:"flex-end"}}>
+          <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} placeholder={user?"Написать в чат...":"Войдите чтобы писать..."} style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:14,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}} onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
+          <button onClick={send} disabled={!input.trim()} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:input.trim()?"pointer":"not-allowed",background:input.trim()?`linear-gradient(135deg,#1a5276,${C.blue})`:C.surface,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s"}}>
             <Send size={17} color={input.trim()?"#fff":C.dimmer}/>
           </button>
         </div>
@@ -750,253 +584,123 @@
     );
   }
 
-  /* ── NEWS SCREEN ── */
-  function NewsScreen({ user }) {
-    const [tab, setTab] = useState("news");
-    const [reports, setReports] = useState([]);
-    const [showForm, setShowForm] = useState(false);
-    const [form, setForm] = useState({title:"",body:"",location:"",fish:""});
-    const [posting, setPosting] = useState(false);
-
-    useEffect(()=>{
-      const unsub = db.collection("reports")
-        .orderBy("timestamp","desc")
-        .limit(30)
-        .onSnapshot(snap=>{
-          setReports(snap.docs.map(d=>({id:d.id,...d.data()})));
-        });
-      return unsub;
-    },[]);
-
-    const submitReport = async () => {
-      if (!form.title||!form.body) return;
+  /* ── NEWS ── */
+  const NEWS_ITEMS=[
+    {id:1,title:"Нерест завершён — рыбалка на Дону открыта",date:"12 мая 2026",source:"Азово-Черноморское управление Росрыболовства",text:"С 12 мая снят нерестовый запрет на большинстве водоёмов Ростовской области. Разрешена ловля всех видов рыб. Норма вылова 5 кг на человека в сутки.",tag:"Официально"},
+    {id:2,title:"Уровень воды в Дону поднялся на 42 см выше нормы",date:"10 мая 2026",source:"Донское бассейновое водное управление",text:"Половодье продолжается. У Аксайской пристани уровень составил 342 см. Прогноз — начало спада через 5–7 дней. Белый амур и карась активно кормятся у берегов.",tag:"Гидрология"},
+    {id:3,title:"Запрет на ловлю судака продлён до 20 мая",date:"5 мая 2026",source:"Рыбнадзор РО",text:"В Аксайском и Азовском районах запрет на ловлю судака продлён до 20 мая в связи с поздним нерестом. Штраф за нарушение — до 100 000 рублей.",tag:"Запрет"},
+    {id:4,title:"На Цимлянском водохранилище отличный клёв леща",date:"8 мая 2026",source:"Рыболовный клуб «Дон»",text:"Рыбаки сообщают о хорошем клёве леща. Глубина 6–8 метров, прикормка с кориандром, крючок №6 с опарышем дают стабильный результат.",tag:"Клёв"},
+    {id:5,title:"Итоги весеннего нереста в Ростовской области",date:"3 мая 2026",source:"Минприроды РО",text:"Нерест 2026 года прошёл успешно. Численность молоди сазана и леща выше прошлогоднего уровня на 15%. Браконьерство снизилось на треть.",tag:"Аналитика"},
+    {id:6,title:"Открытие сезона спортивной рыбалки на Мёртвом Донце",date:"1 мая 2026",source:"ФРР Ростовской области",text:"15 мая состоятся официальные соревнования по ловле карпа на Мёртвом Донце. Регистрация команд до 13 мая.",tag:"Соревнования"},
+  ];
+  function NewsScreen({ user, onLogin }) {
+    const [tab,setTab]=useState("news"); const [reports,setReports]=useState([]); const [showForm,setShowForm]=useState(false); const [form,setForm]=useState({title:"",body:"",location:"",fish:""}); const [posting,setPosting]=useState(false);
+    useEffect(()=>{ const u=db.collection("reports").orderBy("timestamp","desc").limit(30).onSnapshot(s=>{setReports(s.docs.map(d=>({id:d.id,...d.data()})));}); return u; },[]);
+    const submitReport=async()=>{
+      if(!form.title||!form.body) return;
+      if(!user){onLogin();return;}
       setPosting(true);
-      await db.collection("reports").add({
-        ...form, uid:user.uid,
-        displayName: user.displayName||"Рыбак",
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      setForm({title:"",body:"",location:"",fish:""});
-      setShowForm(false); setPosting(false);
+      await db.collection("reports").add({...form,uid:user.uid,displayName:user.displayName||"Рыбак",timestamp:firebase.firestore.FieldValue.serverTimestamp()});
+      setForm({title:"",body:"",location:"",fish:""}); setShowForm(false); setPosting(false);
     };
-
-    const tagColor = t => ({
-      "Официально":"#2ecc71","Гидрология":C.cyan,"Запрет":"#ef4444",
-      "Клёв":C.gold,"Аналитика":C.blue,"Соревнования":"#a78bfa"
-    }[t]||C.muted);
-
+    const tagColor=t=>({Официально:"#2ecc71",Гидрология:C.cyan,Запрет:"#ef4444",Клёв:C.gold,Аналитика:C.blue,Соревнования:"#a78bfa"}[t]||C.muted);
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{padding:"10px 16px 0",borderBottom:`1px solid ${C.border}`}}>
-          <div style={{display:"flex",gap:0}}>
-            {["news","reports"].map(t=>(
-              <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"10px 0",border:"none",
-                background:"none",cursor:"pointer",fontSize:13,fontWeight:700,
-                color:tab===t?C.accent:C.muted,
-                borderBottom:tab===t?`2px solid ${C.accent}`:"2px solid transparent",
-                transition:"all .2s"}}>
-                {t==="news"?"Новости":"Отчёты рыбаков"}
-              </button>
-            ))}
+          <div style={{display:"flex"}}>
+            {["news","reports"].map(t=>(<button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"10px 0",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:700,color:tab===t?C.accent:C.muted,borderBottom:tab===t?`2px solid ${C.accent}`:"2px solid transparent",transition:"all .2s"}}>{t==="news"?"Новости":"Отчёты рыбаков"}</button>))}
           </div>
         </div>
-
         <div style={{flex:1,overflowY:"auto",padding:"12px 14px"}}>
-          {tab==="news" && (
-            <div>
-              {NEWS_ITEMS.map(n=>(
-                <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                    <span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),
-                      background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px",letterSpacing:.5}}>
-                      {n.tag}
-                    </span>
-                    <span style={{fontSize:10,color:C.dimmer}}>{n.date}</span>
-                  </div>
-                  <div style={{fontSize:14,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:6}}>{n.title}</div>
-                  <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:8}}>{n.text}</div>
-                  <div style={{fontSize:10,color:C.dimmer}}>Источник: {n.source}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {tab==="reports" && (
-            <div>
-              <button onClick={()=>setShowForm(true)} style={{width:"100%",padding:"13px",
-                borderRadius:14,border:`1px dashed ${C.borderHi}`,background:C.accentDim,
-                color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,
-                display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                <Plus size={16} color={C.accent}/> Добавить отчёт о рыбалке
-              </button>
-
-              {reports.length===0 && !showForm && (
-                <div style={{textAlign:"center",padding:40,color:C.dimmer}}>
-                  <Fish size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/>
-                  <div style={{fontSize:14}}>Отчётов пока нет — будь первым!</div>
-                </div>
-              )}
-
-              {reports.map(r=>(
-                <div key={r.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{width:28,height:28,borderRadius:"50%",
-                        background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-                        display:"flex",alignItems:"center",justifyContent:"center",
-                        fontSize:12,fontWeight:800,color:"#07111e"}}>
-                        {(r.displayName||"Р")[0].toUpperCase()}
-                      </div>
-                      <span style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.displayName}</span>
-                    </div>
-                    <span style={{fontSize:10,color:C.dimmer}}>{r.timestamp?fmtDate(r.timestamp):""}</span>
-                  </div>
-                  <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>{r.title}</div>
-                  {r.location && (
-                    <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6}}>
-                      <MapPin size={11} color={C.muted}/>
-                      <span style={{fontSize:11,color:C.muted}}>{r.location}</span>
-                    </div>
-                  )}
-                  {r.fish && (
-                    <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6}}>
-                      <Fish size={11} color={C.gold}/>
-                      <span style={{fontSize:11,color:C.gold}}>{r.fish}</span>
-                    </div>
-                  )}
-                  <div style={{fontSize:13,color:"rgba(232,244,240,.8)",lineHeight:1.6}}>{r.body}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {showForm && (
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:100,
-            display:"flex",alignItems:"flex-end",animation:"fadeIn .2s ease"}}>
-            <div style={{...glass(),width:"100%",maxWidth:430,margin:"0 auto",
-              borderRadius:"20px 20px 0 0",padding:20,maxHeight:"85dvh",overflowY:"auto"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <span style={{fontSize:16,fontWeight:800,color:C.text}}>Новый отчёт</span>
-                <button onClick={()=>setShowForm(false)} style={{background:"none",border:"none",cursor:"pointer"}}>
-                  <XIcon size={22} color={C.muted}/>
-                </button>
+          {tab==="news"&&<div>{NEWS_ITEMS.map(n=>(<div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span><span style={{fontSize:10,color:C.dimmer}}>{n.date}</span></div><div style={{fontSize:14,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:6}}>{n.title}</div><div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:8}}>{n.text}</div><div style={{fontSize:10,color:C.dimmer}}>Источник: {n.source}</div></div>))}</div>}
+          {tab==="reports"&&<div>
+            <button onClick={()=>user?setShowForm(true):onLogin()} style={{width:"100%",padding:"13px",borderRadius:14,border:`1px dashed ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <Plus size={16} color={C.accent}/> Добавить отчёт о рыбалке
+            </button>
+            {reports.length===0&&!showForm&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><Fish size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Отчётов пока нет — будь первым!</div></div>}
+            {reports.map(r=>(<div key={r.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#07111e"}}>{(r.displayName||"Р")[0].toUpperCase()}</div><span style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.displayName}</span></div>
+                <span style={{fontSize:10,color:C.dimmer}}>{r.timestamp?fmtDate(r.timestamp):""}</span>
               </div>
-              {[
-                {key:"title",ph:"Заголовок (обязательно)",req:true},
-                {key:"location",ph:"Место рыбалки (водоём, район)"},
-                {key:"fish",ph:"Что поймал (виды рыб, размер)"},
-              ].map(({key,ph})=>(
-                <input key={key} value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))}
-                  placeholder={ph}
-                  style={{width:"100%",padding:"12px 14px",borderRadius:12,marginBottom:10,
-                    background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none"}}
-                  onFocus={e=>e.target.style.borderColor=C.accent}
-                  onBlur={e=>e.target.style.borderColor=C.border}/>
-              ))}
-              <textarea rows={4} value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))}
-                placeholder="Расскажи подробнее: где стояла рыба, снасти, насадка, погода..."
-                style={{width:"100%",resize:"none",padding:"12px 14px",borderRadius:12,marginBottom:14,
-                  background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none",lineHeight:1.5}}
-                onFocus={e=>e.target.style.borderColor=C.accent}
-                onBlur={e=>e.target.style.borderColor=C.border}/>
-              <button onClick={submitReport} disabled={!form.title||!form.body||posting}
-                style={{width:"100%",padding:"14px",borderRadius:14,border:"none",cursor:"pointer",
-                  background:form.title&&form.body?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surface,
-                  color:form.title&&form.body?"#07111e":C.muted,fontSize:15,fontWeight:800,
-                  boxShadow:form.title&&form.body?`0 4px 20px ${C.accentGlow}`:"none"}}>
-                {posting ? "Публикуем..." : "Опубликовать отчёт"}
-              </button>
-            </div>
+              <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:6}}>{r.title}</div>
+              {r.location&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}><MapPin size={11} color={C.muted}/><span style={{fontSize:11,color:C.muted}}>{r.location}</span></div>}
+              {r.fish&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6}}><Fish size={11} color={C.gold}/><span style={{fontSize:11,color:C.gold}}>{r.fish}</span></div>}
+              <div style={{fontSize:13,color:"rgba(232,244,240,.8)",lineHeight:1.6}}>{r.body}</div>
+            </div>))}
+          </div>}
+        </div>
+        {showForm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:100,display:"flex",alignItems:"flex-end",animation:"fadeIn .2s ease"}}>
+          <div style={{...glass(),width:"100%",maxWidth:430,margin:"0 auto",borderRadius:"20px 20px 0 0",padding:20,maxHeight:"85dvh",overflowY:"auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><span style={{fontSize:16,fontWeight:800,color:C.text}}>Новый отчёт</span><button onClick={()=>setShowForm(false)} style={{background:"none",border:"none",cursor:"pointer"}}><XIcon size={22} color={C.muted}/></button></div>
+            {[{key:"title",ph:"Заголовок (обязательно)"},{key:"location",ph:"Место рыбалки"},{key:"fish",ph:"Что поймал"}].map(({key,ph})=>(<input key={key} value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} placeholder={ph} style={{width:"100%",padding:"12px 14px",borderRadius:12,marginBottom:10,background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none"}} onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>))}
+            <textarea rows={4} value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))} placeholder="Расскажи подробнее: снасти, насадка, время клёва..." style={{width:"100%",resize:"none",padding:"12px 14px",borderRadius:12,marginBottom:14,background:C.surfaceHi,border:`1px solid ${C.border}`,color:C.text,fontSize:14,outline:"none",lineHeight:1.5}} onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>
+            <button onClick={submitReport} disabled={!form.title||!form.body||posting} style={{width:"100%",padding:"14px",borderRadius:14,border:"none",cursor:"pointer",background:form.title&&form.body?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surface,color:form.title&&form.body?"#07111e":C.muted,fontSize:15,fontWeight:800}}>{posting?"Публикуем...":"Опубликовать отчёт"}</button>
           </div>
-        )}
+        </div>}
       </div>
     );
   }
 
-  /* ── PROFILE SCREEN ── */
-  function ProfileScreen({ user }) {
+  /* ── PROFILE ── */
+  function ProfileScreen({ user, onLogin }) {
+    if (!user) return <RequireAuth user={user} onLogin={onLogin}><div/></RequireAuth>;
     const stats=[{label:"Уловов",val:"47"},{label:"Рекорд (кг)",val:"12.3"},{label:"Дней",val:"38"}];
     const menu=[
-      {Icon:Clock,      label:"История уловов"},
-      {Icon:MapPin,     label:"Мои точки"},
-      {Icon:AlertCircle,label:"Уведомления"},
-      {Icon:Gauge,      label:"Настройки"},
+      {Icon:Clock,label:"История уловов",href:"#"},
+      {Icon:MapPin,label:"Мои точки",href:"#"},
+      {Icon:AlertCircle,label:"Telegram-бот",href:"https://t.me/egerai_bot"},
+      {Icon:Gauge,label:"Настройки",href:"#"},
     ];
     return (
       <div style={{padding:"16px 14px",overflowY:"auto",height:"100%"}}>
-        <div style={{...glass(`0 0 0 1px ${C.borderHi}`),
-          background:"linear-gradient(135deg,rgba(46,204,113,.12),rgba(59,130,246,.08))",
-          padding:24,textAlign:"center",marginBottom:14}}>
-          <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 12px",
-            background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            boxShadow:`0 0 24px ${C.accentGlow}`,fontSize:28,fontWeight:800,color:"#07111e"}}>
-            {(user.displayName||"Р")[0].toUpperCase()}
-          </div>
-          <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:2}}>
-            {user.displayName||"Рыбак"}
-          </div>
+        <div style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.12),rgba(59,130,246,.08))",padding:24,textAlign:"center",marginBottom:14}}>
+          <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 12px",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 24px ${C.accentGlow}`,fontSize:28,fontWeight:800,color:"#07111e"}}>{(user.displayName||"Р")[0].toUpperCase()}</div>
+          <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:2}}>{user.displayName||"Рыбак"}</div>
           <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{user.email}</div>
-          <div style={{fontSize:11,color:C.dimmer}}>Аксайский район · с 2026</div>
-          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:10}}>
-            {[1,2,3,4,5].map(i=><Star key={i} size={14} color={C.gold} fill={C.gold}/>)}
-          </div>
+          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:10}}>{[1,2,3,4,5].map(i=><Star key={i} size={14} color={C.gold} fill={C.gold}/>)}</div>
         </div>
-
-        <div style={{display:"flex",gap:10,marginBottom:14}}>
-          {stats.map(s=>(
-            <div key={s.label} style={{...glass(),flex:1,padding:"14px 8px",textAlign:"center"}}>
-              <div style={{fontSize:22,fontWeight:800,color:C.accent,filter:`drop-shadow(0 0 8px ${C.accent})`}}>{s.val}</div>
-              <div style={{fontSize:10,color:C.dimmer,marginTop:2}}>{s.label}</div>
+        <div style={{display:"flex",gap:10,marginBottom:14}}>{stats.map(s=>(<div key={s.label} style={{...glass(),flex:1,padding:"14px 8px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:800,color:C.accent,filter:`drop-shadow(0 0 8px ${C.accent})`}}>{s.val}</div><div style={{fontSize:10,color:C.dimmer,marginTop:2}}>{s.label}</div></div>))}</div>
+        {menu.map(({Icon,label,href})=>(
+          <a key={label} href={href} target={href.startsWith("http")?"_blank":"_self"} rel="noreferrer" style={{textDecoration:"none"}}>
+            <div style={{...glass(),padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+              <Icon size={18} color={C.accent}/><span style={{fontSize:14,color:C.text,flex:1}}>{label}</span><ChevronRight size={15} color={C.dimmer}/>
             </div>
-          ))}
-        </div>
-
-        {menu.map(({Icon,label})=>(
-          <div key={label} style={{...glass(),padding:"14px 16px",marginBottom:8,
-            display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-            <Icon size={18} color={C.accent}/>
-            <span style={{fontSize:14,color:C.text,flex:1}}>{label}</span>
-            <ChevronRight size={15} color={C.dimmer}/>
-          </div>
+          </a>
         ))}
-
-        <button onClick={()=>auth.signOut()}
-          style={{width:"100%",marginTop:8,padding:"14px 16px",borderRadius:20,
-            border:`1px solid rgba(239,68,68,.3)`,background:"rgba(239,68,68,.1)",
-            display:"flex",alignItems:"center",justifyContent:"center",gap:8,cursor:"pointer"}}>
-          <LogOut size={18} color="#f87171"/>
-          <span style={{fontSize:14,color:"#f87171",fontWeight:700}}>Выйти из аккаунта</span>
+        <button onClick={()=>auth.signOut()} style={{width:"100%",marginTop:8,padding:"14px 16px",borderRadius:20,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.1)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,cursor:"pointer"}}>
+          <LogOut size={18} color="#f87171"/><span style={{fontSize:14,color:"#f87171",fontWeight:700}}>Выйти из аккаунта</span>
         </button>
       </div>
     );
   }
 
-  /* ── APP ROOT ── */
+  /* ── APP ── */
   function App() {
     const [user, setUser] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
+    const [showAuth, setShowAuth] = useState(false);
     const [tab, setTab] = useState("home");
+    const [weather, setWeather] = useState(null);
+    const [weatherLoading, setWeatherLoading] = useState(false);
 
-    useEffect(()=>{
-      const unsub = auth.onAuthStateChanged(u=>{
-        setUser(u); setAuthLoading(false);
-      });
-      return unsub;
+    useEffect(()=>{ const u=auth.onAuthStateChanged(u=>{setUser(u);setAuthLoading(false);}); return u; },[]);
+
+    const loadWeather = useCallback(async()=>{
+      setWeatherLoading(true);
+      try { setWeather(await fetchWeather()); } catch(e){ console.log("weather error",e); }
+      setWeatherLoading(false);
     },[]);
 
+    useEffect(()=>{ loadWeather(); const t=setInterval(loadWeather,10*60*1000); return()=>clearInterval(t); },[loadWeather]);
+
     if (authLoading) return (
-      <div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",
-        background:"#07111e"}}>
-        <div style={{width:48,height:48,borderRadius:"50%",border:`3px solid ${C.accent}`,
-          borderTopColor:"transparent",animation:"spin 1s linear infinite"}}/>
+      <div style={{height:"100dvh",display:"flex",alignItems:"center",justifyContent:"center",background:"#07111e"}}>
+        <div style={{width:48,height:48,borderRadius:"50%",border:`3px solid ${C.accent}`,borderTopColor:"transparent",animation:"spin 1s linear infinite"}}/>
       </div>
     );
 
-    if (!user) return <AuthScreen/>;
-
-    const NAV = [
+    const NAV=[
       {id:"home",     label:"Главная", Icon:Home},
       {id:"chat",     label:"Егерь",   Icon:Fish},
       {id:"community",label:"Чат",     Icon:MessageCircle},
@@ -1005,44 +709,30 @@
     ];
 
     return (
-      <div style={{maxWidth:430,margin:"0 auto",height:"100dvh",display:"flex",
-        flexDirection:"column",background:"linear-gradient(180deg,#07111e 0%,#0a192f 100%)",
-        position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-100,left:-60,width:280,height:280,borderRadius:"50%",
-          pointerEvents:"none",zIndex:0,background:"radial-gradient(circle,rgba(46,204,113,.08) 0%,transparent 70%)"}}/>
-        <div style={{position:"absolute",bottom:80,right:-80,width:240,height:240,borderRadius:"50%",
-          pointerEvents:"none",zIndex:0,background:"radial-gradient(circle,rgba(34,211,238,.07) 0%,transparent 70%)"}}/>
+      <div style={{maxWidth:430,margin:"0 auto",height:"100dvh",display:"flex",flexDirection:"column",background:"linear-gradient(180deg,#07111e 0%,#0a192f 100%)",position:"relative",overflow:"hidden"}}>
+        {showAuth && <AuthModal onClose={()=>setShowAuth(false)} onSuccess={()=>setShowAuth(false)}/>}
 
-        <header style={{padding:"48px 16px 12px",display:"flex",alignItems:"center",
-          justifyContent:"space-between",background:"rgba(7,17,30,.85)",
-          backdropFilter:"blur(24px)",borderBottom:`1px solid ${C.border}`,position:"relative",zIndex:10}}>
+        <div style={{position:"absolute",top:-100,left:-60,width:280,height:280,borderRadius:"50%",pointerEvents:"none",zIndex:0,background:"radial-gradient(circle,rgba(46,204,113,.08) 0%,transparent 70%)"}}/>
+        <div style={{position:"absolute",bottom:80,right:-80,width:240,height:240,borderRadius:"50%",pointerEvents:"none",zIndex:0,background:"radial-gradient(circle,rgba(34,211,238,.07) 0%,transparent 70%)"}}/>
+
+        <header style={{padding:"48px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(7,17,30,.85)",backdropFilter:"blur(24px)",borderBottom:`1px solid ${C.border}`,position:"relative",zIndex:10}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:40,height:40,borderRadius:12,
-              background:`linear-gradient(135deg,${C.accent},${C.cyan})`,
-              display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:`0 4px 18px ${C.accentGlow}`}}>
-              <Fish size={21} color="#07111e"/>
-            </div>
+            <div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 18px ${C.accentGlow}`}}><Fish size={21} color="#07111e"/></div>
             <div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,letterSpacing:2.5,lineHeight:1,
-                background:"linear-gradient(90deg,#fff 20%,#2ecc71 80%)",
-                WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-                Егерь ИИ
-              </div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,letterSpacing:2.5,lineHeight:1,background:"linear-gradient(90deg,#fff 20%,#2ecc71 80%)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Егерь ИИ</div>
               <div style={{fontSize:10,color:C.dimmer,letterSpacing:.5}}>Умный помощник рыбака</div>
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}}>
-            <div style={{display:"flex",alignItems:"center",gap:5,background:C.accentDim,
-              border:`1px solid ${C.borderHi}`,borderRadius:20,padding:"4px 10px"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:C.accent,
-                animation:"pulseGlow 2s ease infinite",boxShadow:`0 0 6px ${C.accent}`}}/>
-              <MapPin size={11} color={C.accent}/>
-              <span style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:.3}}>Аксайский р-н</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:5,
-              background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",
-              borderRadius:20,padding:"4px 10px"}}>
+            {user ? (
+              <div style={{display:"flex",alignItems:"center",gap:6,background:C.accentDim,border:`1px solid ${C.borderHi}`,borderRadius:20,padding:"5px 10px"}}>
+                <div style={{width:20,height:20,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#07111e"}}>{(user.displayName||"Р")[0].toUpperCase()}</div>
+                <span style={{fontSize:11,color:C.accent,fontWeight:700}}>{(user.displayName||"").split(" ")[0]}</span>
+              </div>
+            ) : (
+              <button onClick={()=>setShowAuth(true)} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>
+            )}
+            <div style={{display:"flex",alignItems:"center",gap:5,background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",borderRadius:20,padding:"4px 10px"}}>
               <WaveIcon size={14}/>
               <span style={{fontSize:10,color:C.cyan,fontWeight:700}}>Дон +40 см</span>
             </div>
@@ -1050,37 +740,23 @@
         </header>
 
         <main style={{flex:1,overflow:"hidden",position:"relative",zIndex:1}}>
-          {tab==="home"      && <HomeScreen onGoChat={()=>setTab("chat")}/>}
-          {tab==="chat"      && <ChatScreen/>}
-          {tab==="community" && <CommunityScreen user={user}/>}
-          {tab==="news"      && <NewsScreen user={user}/>}
-          {tab==="profile"   && <ProfileScreen user={user}/>}
+          {tab==="home"      && <HomeScreen onGoChat={()=>setTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={setTab}/>}
+          {tab==="chat"      && <ChatScreen weather={weather}/>}
+          {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
+          {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)}/>}
+          {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)}/>}
         </main>
 
-        <nav style={{display:"flex",background:"rgba(7,17,30,.95)",backdropFilter:"blur(24px)",
-          borderTop:`1px solid ${C.border}`,paddingBottom:"env(safe-area-inset-bottom,6px)",
-          position:"relative",zIndex:10}}>
+        <nav style={{display:"flex",background:"rgba(7,17,30,.95)",backdropFilter:"blur(24px)",borderTop:`1px solid ${C.border}`,paddingBottom:"env(safe-area-inset-bottom,6px)",position:"relative",zIndex:10}}>
           {NAV.map(({id,label,Icon})=>{
             const active=tab===id;
-            return (
-              <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"8px 0 6px",
-                background:"none",border:"none",cursor:"pointer",
-                display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
-                {active && (
-                  <div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",
-                    width:24,height:2,borderRadius:2,background:C.accent,boxShadow:`0 0 8px ${C.accent}`}}/>
-                )}
-                <div style={{width:34,height:34,borderRadius:10,
-                  background:active?C.accentDim:"transparent",
-                  border:`1px solid ${active?C.borderHi:"transparent"}`,
-                  display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
-                  <Icon size={17} color={active?C.accent:C.dimmer}
-                    style={active?{filter:`drop-shadow(0 0 5px ${C.accent})`}:undefined}/>
-                </div>
-                <span style={{fontSize:9,letterSpacing:.3,fontWeight:active?700:500,
-                  color:active?C.accent:C.dimmer}}>{label}</span>
-              </button>
-            );
+            return (<button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:"8px 0 6px",background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
+              {active&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:24,height:2,borderRadius:2,background:C.accent,boxShadow:`0 0 8px ${C.accent}`}}/>}
+              <div style={{width:34,height:34,borderRadius:10,background:active?C.accentDim:"transparent",border:`1px solid ${active?C.borderHi:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+                <Icon size={17} color={active?C.accent:C.dimmer} style={active?{filter:`drop-shadow(0 0 5px ${C.accent})`}:undefined}/>
+              </div>
+              <span style={{fontSize:9,letterSpacing:.3,fontWeight:active?700:500,color:active?C.accent:C.dimmer}}>{label}</span>
+            </button>);
           })}
         </nav>
       </div>
