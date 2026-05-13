@@ -14,6 +14,8 @@
   <script src="https://unpkg.com/@babel/standalone@7.23.3/babel.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     html, body, #root { height:100%; background:#07111e; }
@@ -1437,6 +1439,179 @@
     );
   }
 
+  /* ── SHOPS MAP ── */
+  const SHOPS = [
+    {id:1,name:"Рыболов",addr:"ул. Нариманова, 56",city:"Ростов-на-Дону",phone:"+7 (863) 269-44-00",hours:"9:00–21:00",lat:47.2201,lng:39.7234,rating:4.5,cnt:87,tags:["снасти","прикормки","одежда","лески"]},
+    {id:2,name:"Охота и Рыбалка",addr:"Большая Садовая, 62",city:"Ростов-на-Дону",phone:"+7 (863) 240-88-00",hours:"9:00–21:00",lat:47.2357,lng:39.7134,rating:4.3,cnt:124,tags:["снасти","оружие","туризм","лодки"]},
+    {id:3,name:"Мир Рыбака",addr:"ул. Красноармейская, 87",city:"Ростов-на-Дону",phone:"+7 (863) 261-00-55",hours:"9:00–20:00",lat:47.2289,lng:39.7289,rating:4.7,cnt:56,tags:["снасти","насадки","прикормки","эхолоты"]},
+    {id:4,name:"Рыбак",addr:"пр. Ворошиловский, 12",city:"Ростов-на-Дону",phone:"+7 (863) 240-11-33",hours:"8:00–22:00",lat:47.2401,lng:39.7056,rating:4.1,cnt:43,tags:["снасти","лески","крючки","приманки"]},
+    {id:5,name:"Планета Рыбака",addr:"ул. Стачки, 198",city:"Ростов-на-Дону",phone:"+7 (863) 285-77-00",hours:"9:00–21:00",lat:47.2456,lng:39.6812,rating:4.6,cnt:92,tags:["снасти","лодки","эхолоты","моторы"]},
+    {id:6,name:"Рыболов-Аксай",addr:"ул. Ленина, 45",city:"Аксай",phone:"+7 (86350) 5-12-33",hours:"8:00–20:00",lat:47.2681,lng:39.8699,rating:4.4,cnt:38,tags:["снасти","живец","насадки","прикормки"]},
+    {id:7,name:"Крючок",addr:"ул. Свердлова, 23",city:"Батайск",phone:"+7 (86354) 6-44-00",hours:"9:00–19:00",lat:47.1456,lng:39.7456,rating:4.2,cnt:29,tags:["снасти","прикормки","поплавки"]},
+    {id:8,name:"Рыболовный Мир",addr:"ул. Московская, 78",city:"Азов",phone:"+7 (86342) 4-88-00",hours:"8:00–21:00",lat:47.1023,lng:39.4123,rating:4.5,cnt:61,tags:["морские снасти","тарань","бычок","море"]},
+    {id:9,name:"Рыбачок",addr:"ул. Платовская, 15",city:"Новочеркасск",phone:"+7 (86352) 2-55-00",hours:"9:00–20:00",lat:47.4189,lng:40.0934,rating:4.0,cnt:22,tags:["снасти","прикормки","удочки"]},
+    {id:10,name:"Мастер Рыбак",addr:"ул. Подтёлкова, 12",city:"Семикаракорск",phone:"+7 (86356) 4-11-00",hours:"8:00–19:00",lat:47.5101,lng:40.8234,rating:4.3,cnt:17,tags:["снасти","Цимлянское","фидер","спиннинг"]},
+    {id:11,name:"Рыболов Дон",addr:"ул. Большая, 11",city:"Константиновск",phone:"+7 (86393) 2-44-00",hours:"8:00–19:00",lat:47.5801,lng:41.0912,rating:4.1,cnt:14,tags:["снасти","насадки","прикормки"]},
+    {id:12,name:"Спортивная рыбалка",addr:"ул. Ленинградская, 45",city:"Ростов-на-Дону",phone:"+7 (863) 244-55-00",hours:"10:00–20:00",lat:47.2523,lng:39.7401,rating:4.4,cnt:71,tags:["карп","бойлы","спиннинг","нахлыст"]},
+  ];
+
+  function ShopsScreen() {
+    const mapDiv = useRef(null);
+    const lmap = useRef(null);
+    const mRefs = useRef({});
+    const [selected, setSelected] = useState(null);
+    const [search, setSearch] = useState("");
+
+    const isOpen = (h) => {
+      const now = new Date(), cur = now.getHours()*60+now.getMinutes();
+      const parts = h.replace("–","-").split("-").map(t=>{ const [hh,mm]=(t+":00").split(":").map(Number); return hh*60+(mm||0); });
+      return cur>=parts[0]&&cur<parts[1];
+    };
+
+    const Stars = ({r}) => {
+      const full=Math.floor(r), half=r%1>=0.5;
+      return <span style={{color:"#f59e0b",fontSize:12,letterSpacing:1}}>{"★".repeat(full)}{half?"☆":""}{"☆".repeat(5-full-(half?1:0))}</span>;
+    };
+
+    const PIN_HTML = (active=false) =>
+      `<div style="position:relative;width:32px;height:40px"><div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:${active?"#f59e0b":"#2ecc71"};border:3px solid white;transform:rotate(-45deg);box-shadow:0 3px 10px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);font-size:13px;line-height:1">🎣</span></div></div>`;
+
+    useEffect(()=>{
+      if(!mapDiv.current||lmap.current) return;
+      const L=window.L; if(!L) return;
+      const map=L.map(mapDiv.current,{center:[47.2357,39.7015],zoom:10,zoomControl:false});
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
+        attribution:'© <a href="https://openstreetmap.org">OSM</a> © <a href="https://carto.com">CARTO</a>',maxZoom:19
+      }).addTo(map);
+      L.control.zoom({position:"topright"}).addTo(map);
+      SHOPS.forEach(shop=>{
+        const mkIcon=(active)=>L.divIcon({html:PIN_HTML(active),iconSize:[32,40],iconAnchor:[15,40],className:""});
+        const m=L.marker([shop.lat,shop.lng],{icon:mkIcon(false)}).addTo(map);
+        m.on("click",()=>{
+          Object.values(mRefs.current).forEach(({m:mk,shop:s})=>mk.setIcon(L.divIcon({html:PIN_HTML(false),iconSize:[32,40],iconAnchor:[15,40],className:""})));
+          m.setIcon(mkIcon(true));
+          setSelected(shop);
+          map.flyTo([shop.lat,shop.lng],15,{duration:0.8});
+        });
+        mRefs.current[shop.id]={m,shop};
+      });
+      lmap.current=map;
+      return()=>{ map.remove(); lmap.current=null; };
+    },[]);
+
+    const flyTo=(shop)=>{
+      const L=window.L; if(!L||!lmap.current) return;
+      Object.values(mRefs.current).forEach(({m,shop:s})=>m.setIcon(L.divIcon({html:PIN_HTML(s.id===shop.id),iconSize:[32,40],iconAnchor:[15,40],className:""})));
+      setSelected(shop);
+      lmap.current.flyTo([shop.lat,shop.lng],15,{duration:0.8});
+    };
+
+    const back=()=>{
+      const L=window.L; if(L&&lmap.current){
+        Object.values(mRefs.current).forEach(({m})=>m.setIcon(L.divIcon({html:PIN_HTML(false),iconSize:[32,40],iconAnchor:[15,40],className:""})));
+        lmap.current.flyTo([47.2357,39.7015],10,{duration:0.6});
+      }
+      setSelected(null);
+    };
+
+    const filtered=SHOPS.filter(s=>{
+      if(!search) return true;
+      const q=search.toLowerCase();
+      return s.name.toLowerCase().includes(q)||s.addr.toLowerCase().includes(q)||s.city.toLowerCase().includes(q)||s.tags.some(t=>t.includes(q));
+    });
+
+    const PANEL_H=selected?300:260;
+    const o=selected?isOpen(selected.hours):false;
+
+    return(
+      <div style={{height:"100%",display:"flex",flexDirection:"column",background:C.bg}}>
+        {/* Search bar */}
+        <div style={{padding:"8px 12px",background:"rgba(7,17,30,.97)",backdropFilter:"blur(20px)",borderBottom:`1px solid ${C.border}`,zIndex:20,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:C.surfaceHi,borderRadius:12,padding:"9px 12px",border:`1px solid ${C.border}`}}>
+            <MapPin size={15} color={C.muted}/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск рыболовных магазинов..." style={{flex:1,background:"none",border:"none",outline:"none",color:C.text,fontSize:14}}/>
+            {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18,lineHeight:1}}>×</button>}
+          </div>
+        </div>
+
+        {/* Map */}
+        <div ref={mapDiv} style={{flex:1,minHeight:0}}/>
+
+        {/* Bottom panel */}
+        <div style={{height:PANEL_H,background:"rgba(7,17,30,.98)",borderTop:`2px solid ${C.border}`,overflowY:"auto",flexShrink:0,transition:"height .3s ease"}}>
+          {selected?(
+            <div style={{padding:"14px 14px 24px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                <button onClick={back} style={{background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 12px",color:C.muted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                  ← Все магазины
+                </button>
+                <span style={{fontSize:11,color:C.dimmer}}>{selected.city}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                <div>
+                  <div style={{fontSize:19,fontWeight:800,color:C.text,marginBottom:3}}>{selected.name}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <Stars r={selected.rating}/>
+                    <span style={{color:"#f59e0b",fontSize:12,fontWeight:700}}>{selected.rating}</span>
+                    <span style={{color:C.muted,fontSize:11}}>({selected.cnt} отз.)</span>
+                  </div>
+                </div>
+                <div style={{padding:"5px 10px",borderRadius:8,background:o?"rgba(46,204,113,.15)":"rgba(239,68,68,.15)",border:`1px solid ${o?"rgba(46,204,113,.4)":"rgba(239,68,68,.4)"}`,fontSize:11,fontWeight:800,color:o?"#2ecc71":"#ef4444",whiteSpace:"nowrap"}}>
+                  {o?"● Открыт":"● Закрыт"}
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:12,padding:"10px 12px",background:C.surfaceHi,borderRadius:12,border:`1px solid ${C.border}`}}>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}><MapPin size={13} color={C.muted}/><span style={{color:C.text,fontSize:13}}>{selected.addr}, {selected.city}</span></div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}><Clock size={13} color={C.muted}/><span style={{color:C.text,fontSize:13}}>Работает: {selected.hours}</span></div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:13}}>📞</span><a href={`tel:${selected.phone}`} style={{color:C.accent,fontSize:13,textDecoration:"none",fontWeight:700}}>{selected.phone}</a></div>
+              </div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+                {selected.tags.map(t=><span key={t} style={{padding:"3px 10px",borderRadius:20,background:C.accentDim,border:`1px solid ${C.borderHi}`,color:C.accent,fontSize:11,fontWeight:600}}>{t}</span>)}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>window.open(`https://maps.google.com/?q=${selected.lat},${selected.lng}`,"_blank","noopener,noreferrer")} style={{flex:1,padding:"12px",borderRadius:12,border:"none",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                  📍 Маршрут
+                </button>
+                <a href={`tel:${selected.phone}`} style={{flex:1,padding:"12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:13,fontWeight:800,cursor:"pointer",textDecoration:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                  📞 Позвонить
+                </a>
+              </div>
+            </div>
+          ):(
+            <div style={{padding:"12px 12px 24px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <span style={{fontSize:14,fontWeight:800,color:C.text}}>Рыболовные магазины</span>
+                <span style={{fontSize:11,color:C.muted,background:C.surfaceHi,padding:"3px 8px",borderRadius:8}}>{filtered.length} шт.</span>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {filtered.map(shop=>{
+                  const op=isOpen(shop.hours);
+                  return(
+                    <button key={shop.id} onClick={()=>flyTo(shop)} style={{display:"flex",gap:10,padding:"11px 12px",borderRadius:12,background:C.surfaceHi,border:`1px solid ${C.border}`,cursor:"pointer",textAlign:"left",width:"100%"}}>
+                      <div style={{width:42,height:42,borderRadius:12,background:C.accentDim,border:`1px solid ${C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:20}}>🎣</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                          <span style={{fontSize:14,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{shop.name}</span>
+                          <span style={{fontSize:10,fontWeight:700,color:op?"#2ecc71":"#ef4444",flexShrink:0,marginLeft:6}}>{op?"● Открыт":"● Закрыт"}</span>
+                        </div>
+                        <div style={{fontSize:11,color:C.muted,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{shop.addr}, {shop.city}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:5}}>
+                          <Stars r={shop.rating}/>
+                          <span style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>{shop.rating}</span>
+                          <span style={{fontSize:10,color:C.dimmer}}>• {shop.hours}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   /* ── APP ── */
   function App() {
     const [user, setUser] = useState(null);
@@ -1466,6 +1641,7 @@
       {id:"home",     label:"Главная", Icon:Home},
       {id:"chat",     label:"Егерь",   Icon:Fish},
       {id:"community",label:"Чат",     Icon:MessageCircle},
+      {id:"map",      label:"Магазины",Icon:MapPin},
       {id:"news",     label:"Новости", Icon:Newspaper},
       {id:"profile",  label:"Профиль", Icon:User},
     ];
@@ -1505,6 +1681,7 @@
           {tab==="home"      && <HomeScreen onGoChat={()=>setTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={setTab}/>}
           {tab==="chat"      && <ChatScreen weather={weather}/>}
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
+          {tab==="map"       && <ShopsScreen/>}
           {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)}/>}
         </main>
