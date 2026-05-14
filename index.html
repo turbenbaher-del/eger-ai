@@ -1541,9 +1541,18 @@
               </div>
             ))}
           </div>
-          <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:20,background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.25)"}}>
-            <span style={{fontSize:11,color:C.cyan,fontWeight:700}}>🌊 Вода +{weather.waterTemp}°C</span>
-            <span style={{fontSize:10,color:C.dimmer}}>· обновлено {weather.updated}</span>
+          <div style={{display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:20,background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.25)"}}>
+              <span style={{fontSize:11,color:C.cyan,fontWeight:700}}>🌊 Вода +{weather.waterTemp}°C</span>
+              <span style={{fontSize:10,color:C.dimmer}}>· обновлено {weather.updated}</span>
+            </div>
+            {weather.daily?.sunrise?.[0]&&(
+              <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 12px",borderRadius:20,background:"rgba(245,158,11,.08)",border:"1px solid rgba(245,158,11,.25)"}}>
+                <span style={{fontSize:11,color:C.gold,fontWeight:700}}>🌅 {new Date(weather.daily.sunrise[0]).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</span>
+                <span style={{fontSize:11,color:C.dimmer}}>|</span>
+                <span style={{fontSize:11,color:"#f97316",fontWeight:700}}>🌇 {new Date(weather.daily.sunset[0]).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</span>
+              </div>
+            )}
           </div>
         </div>
 
