@@ -575,6 +575,86 @@
     ]);
   };
 
+  // ── Context-aware AI wrapper ──
+  const FISH_NAMES = ["амур","щука","лещ","карась","сазан","судак","карп","плотва","тарань","голавль","красноперка","толстолобик","чехонь","сом","окунь","жерех","берш","бычок","линь","пиленгас"];
+  const detectFish = l => FISH_NAMES.find(f=>l.includes(f));
+
+  const getBotReplyCtx = (q, weather, ctx={}) => {
+    const l = q.toLowerCase();
+    const newCtx = {...ctx};
+    const fish = detectFish(l);
+    if(fish) newCtx.fish = fish;
+
+    // ── resolve pending: waiting for fish name ──
+    if(ctx.pending === 'fish') {
+      if(fish) {
+        newCtx.pending = null;
+        const pf = ctx.pendingFor;
+        if(pf === 'spots') {
+          const s = nearestFishSpot(fish);
+          return {text:`Точки для ловли ${fish}а:\n\n📍 ${s.n}\nhttps://maps.google.com/?q=${s.c}\n\nЕщё — спроси "ещё точки для ${fish}а"`, ctx:newCtx};
+        }
+        if(pf === 'bait')   return {text:getBotReply(`насадки для ${fish}`, weather), ctx:newCtx};
+        if(pf === 'tackle') return {text:getBotReply(`снасти для ${fish}`, weather),  ctx:newCtx};
+        // generic — ask what aspect
+        newCtx.pending = 'topic';
+        const cap = fish.charAt(0).toUpperCase()+fish.slice(1);
+        return {text:`${cap} — отличный выбор! Что интересует:\n\n1️⃣ Точки ловли (GPS)\n2️⃣ Насадки и прикормка\n3️⃣ Снасти и оснастка\n4️⃣ Лучшее время\n\nНапиши цифру или своими словами.`, ctx:newCtx};
+      }
+      return {text:`Не расслышал 😄 Какую рыбу ловишь? Например: лещ, судак, щука, сазан, сом, берш, амур...`, ctx:newCtx};
+    }
+
+    // ── resolve pending: waiting for topic selection ──
+    if(ctx.pending === 'topic' && ctx.fish) {
+      const f = ctx.fish;
+      newCtx.pending = null;
+      if(l.match(/^1$|точк|место|куда|где|координат/))               { const s=nearestFishSpot(f); return {text:`📍 Точки для ${f}а:\n\n${s.n}\nhttps://maps.google.com/?q=${s.c}\n\nЧто ещё интересует по ${f}у?`, ctx:newCtx}; }
+      if(l.match(/^2$|насад|прикорм|наживк|мотыл|червь|опарыш|бойл/)) return {text:getBotReply(`насадки для ${f}`, weather), ctx:newCtx};
+      if(l.match(/^3$|снаст|фидер|спиннинг|поплавок|удоч|оснастк/))  return {text:getBotReply(`снасти для ${f}`, weather),  ctx:newCtx};
+      if(l.match(/^4$|время|сезон|когда|лучш/)) {
+        const moon=moonPhase(), month=new Date().getMonth();
+        return {text:`🕐 Лучшее время для ${f}а:\n\n${moon.ico} ${moon.tip}\n\nАктивен сейчас: ${seasonFish(month)}\n\nЛучшие часы: 4–8 утра и 17–20 вечера.`, ctx:newCtx};
+      }
+      // topic not matched — fall through to normal processing
+    }
+
+    // ── context-enhanced "где/куда" without fish ──
+    if(!fish && l.match(/где|куда|точк|место|координат/) && !l.match(/насадк|снасти?|прикорм|наживк/)) {
+      if(newCtx.fish) {
+        const s = nearestFishSpot(newCtx.fish);
+        return {text:`Точки для ${newCtx.fish}а:\n\n📍 ${s.n}\nhttps://maps.google.com/?q=${s.c}`, ctx:newCtx};
+      }
+      newCtx.pending='fish'; newCtx.pendingFor='spots';
+      return {text:`Какую рыбу ловишь? Дам GPS-точки именно под неё.\n\nЕсть места для: леща, судака, щуки, сазана, карася, сома, берша, амура, бычка...`, ctx:newCtx};
+    }
+
+    // ── context-enhanced "на что/насадки" without fish ──
+    if(!fish && l.match(/на что|насадк|наживк|приманк/)) {
+      if(newCtx.fish) return {text:getBotReply(`насадки для ${newCtx.fish}`, weather), ctx:newCtx};
+      newCtx.pending='fish'; newCtx.pendingFor='bait';
+      return {text:`На кого ловишь? Подберу насадку точно под рыбу.`, ctx:newCtx};
+    }
+
+    // ── context-enhanced "снасти" without fish ──
+    if(!fish && l.match(/снасти?|снасть|оснастк/) && !l.match(/фидер|спиннинг|поплавок/)) {
+      if(newCtx.fish) return {text:getBotReply(`снасти для ${newCtx.fish}`, weather), ctx:newCtx};
+      newCtx.pending='fish'; newCtx.pendingFor='tackle';
+      return {text:`Снасти под какую рыбу? Укажи — дам конкретные рекомендации.`, ctx:newCtx};
+    }
+
+    // ── context-aware greeting ──
+    if(l.match(/привет|здрав|дарова|хай|добрый|как дела/)) {
+      const txt = newCtx.fish
+        ? `Снова привет! Продолжаем по ${newCtx.fish}у или что-то новое? 🎣`
+        : pick([`Здорово, рыбак! 🎣 Что интересует — куда поехать, что ловить, на что клюёт?`,`Привет! Спрашивай — знаю все ямы Дона 😄`]);
+      return {text:txt, ctx:newCtx};
+    }
+
+    // ── default: original logic ──
+    newCtx.pending = null;
+    return {text:getBotReply(q, weather), ctx:newCtx};
+  };
+
   const shopLinks = (query) => {
     const q = encodeURIComponent(query);
     return `\n🛒 Купить:\nWildberries: https://www.wildberries.ru/catalog/0/search.aspx?search=${q}\nOzon: https://www.ozon.ru/search/?text=${q}\nЯндекс Маркет: https://market.yandex.ru/search?text=${q}`;
@@ -941,6 +1021,7 @@
     const camRef = useRef(null);
     const srRef = useRef(null);
     const srTextRef = useRef("");
+    const ctxRef = useRef({});
 
     useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
 
@@ -953,7 +1034,9 @@
       const text=input.trim(); if(!text) return;
       setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime()}]);
       setInput("");
-      aiReply(getBotReply(text,weather));
+      const r = getBotReplyCtx(text, weather, ctxRef.current);
+      ctxRef.current = r.ctx;
+      aiReply(r.text);
     },[input,weather]);
 
     const sendPhoto = async (file) => {
@@ -999,7 +1082,9 @@
         setVoiceText("");
         if (text) {
           setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime(),voice:true}]);
-          aiReply(getBotReply(text, weather));
+          const r = getBotReplyCtx(text, weather, ctxRef.current);
+          ctxRef.current = r.ctx;
+          aiReply(r.text);
         }
       };
 
