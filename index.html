@@ -1507,38 +1507,6 @@
   }
 
   /* ── NEWS ── */
-  async function fetchRssNews() {
-    const feeds = [
-      "https://news.google.com/rss/search?q=рыбалка+Ростов+Дон&hl=ru&gl=RU&ceid=RU:ru",
-      "https://news.google.com/rss/search?q=рыболовство+запрет+нерест&hl=ru&gl=RU&ceid=RU:ru",
-    ];
-    const proxy = "https://api.allorigins.win/get?url=";
-    const ts = Date.now();
-    const items = [];
-    for(const feed of feeds){
-      try{
-        const r = await fetch(proxy + encodeURIComponent(feed) + `&_=${ts}`);
-        const d = await r.json();
-        const xml = new DOMParser().parseFromString(d.contents,"text/xml");
-        xml.querySelectorAll("item").forEach(el=>{
-          const title = el.querySelector("title")?.textContent||"";
-          const desc  = el.querySelector("description")?.textContent?.replace(/<[^>]+>/g,"").slice(0,220)||"";
-          const link  = el.querySelector("link")?.textContent||"";
-          const pub   = el.querySelector("pubDate")?.textContent||"";
-          const src   = el.querySelector("source")?.textContent||"Google Новости";
-          const tl    = title.toLowerCase();
-          const tag   = tl.includes("запрет")||tl.includes("штраф")?"Запрет"
-                       :tl.includes("клёв")||tl.includes("клев")||tl.includes("улов")?"Клёв"
-                       :tl.includes("нерест")?"Нерест"
-                       :tl.includes("соревнован")?"Соревнования"
-                       :tl.includes("уровень")||tl.includes("паводок")||tl.includes("вода")?"Гидрология"
-                       :"Новости";
-          if(title) items.push({id:link||title,title,text:desc,date:pub?new Date(pub).toLocaleDateString("ru-RU",{day:"numeric",month:"long"}):"",source:src,tag,link});
-        });
-      }catch(e){ console.log("rss error",e); }
-    }
-    return items.slice(0,15);
-  }
 
   const NEWS_ITEMS=[
     {id:1,title:"Нерест завершён — рыбалка на Дону открыта",date:"12 мая 2026",source:"Азово-Черноморское управление Росрыболовства",text:"С 12 мая снят нерестовый запрет на большинстве водоёмов Ростовской области. Разрешена ловля всех видов рыб. Норма вылова 5 кг на человека в сутки.",tag:"Официально"},
@@ -1590,36 +1558,25 @@
     const [posting,setPosting]=useState(false);
     const [uploadPct,setUploadPct]=useState(null);
 
-    // Реальное время: опрос RSS каждые 3 минуты
+    // Реальное время: Firestore onSnapshot (бот пишет, сайт читает)
     useEffect(()=>{
-      const load=async(silent=false)=>{
-        if(!silent) setNewsLoading(true);
-        try{
-          const items=await fetchRssNews();
-          if(items.length>0){
-            // Найти новые статьи (которых ещё не было)
-            const fresh=items.filter(it=>!seenIdsRef.current.has(it.id));
-            if(fresh.length>0){
-              fresh.forEach(it=>seenIdsRef.current.add(it.id));
-              setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
-              setNewCount(n=>n+fresh.length);
-              setNewsItems(prev=>[...fresh,...prev].slice(0,30));
-            } else if(items.length>0){
-              setNewsItems(prev=>{
-                const existingIds=new Set(prev.map(p=>p.id));
-                const merged=[...prev];
-                items.forEach(it=>{ if(!existingIds.has(it.id)) merged.push(it); });
-                return merged.slice(0,30);
-              });
-            }
-            setLastUpdated(new Date());
+      setNewsLoading(true);
+      const unsub=db.collection("news").orderBy("timestamp","desc").limit(20)
+        .onSnapshot(snap=>{
+          setNewsLoading(false);
+          if(snap.empty) return;
+          const items=snap.docs.map(d=>({id:d.id,...d.data(),
+            date:d.data().timestamp?.toDate?.().toLocaleDateString("ru-RU",{day:"numeric",month:"long"})||""}));
+          const fresh=items.filter(it=>!seenIdsRef.current.has(it.id));
+          if(fresh.length>0){
+            fresh.forEach(it=>seenIdsRef.current.add(it.id));
+            setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
+            setNewCount(n=>n+fresh.length);
+            setNewsItems(prev=>[...fresh,...prev].slice(0,30));
           }
-        }catch(e){ console.log("news err",e); }
-        if(!silent) setNewsLoading(false);
-      };
-      load(false);                           // первый запуск — показываем спиннер
-      const t=setInterval(()=>load(true),3*60*1000); // тихий опрос каждые 3 мин
-      return()=>clearInterval(t);
+          setLastUpdated(new Date());
+        }, err=>{ console.log("news snapshot err",err); setNewsLoading(false); });
+      return unsub;
     },[]);
 
     useEffect(()=>{
@@ -1687,11 +1644,10 @@
                     {notifEnabled?"Push вкл":"Уведомления"}
                   </button>
                 )}
-                <button onClick={async()=>{setNewsLoading(true);try{const it=await fetchRssNews();if(it.length>0){const fr=it.filter(x=>!seenIdsRef.current.has(x.id));fr.forEach(x=>seenIdsRef.current.add(x.id));if(fr.length>0){setNewIds(p=>new Set([...p,...fr.map(x=>x.id)]));setNewCount(n=>n+fr.length);}setNewsItems(it);setLastUpdated(new Date());}}catch(e){}setNewsLoading(false);}}
-                  style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,padding:"4px 10px",color:newsLoading?C.accent:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-                  <RefreshCw size={11} color={newsLoading?C.accent:C.muted} style={newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
-                  {newsLoading?"Загрузка...":"Обновить"}
-                </button>
+                <div style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:10,border:`1px solid ${C.border}`,color:C.dimmer,fontSize:11}}>
+                  <RefreshCw size={11} color={newsLoading?C.accent:C.dimmer} style={newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
+                  {newsLoading?"Загрузка...":"Авто"}
+                </div>
               </div>
             </div>
             {newsItems.map(n=>{
