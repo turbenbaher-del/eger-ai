@@ -1622,6 +1622,53 @@
           </div>
         )}
 
+        {/* Solunar fishing periods */}
+        {(()=>{
+          const mp=moonPhase();
+          const refD=new Date(2024,0,11);
+          const p=(((new Date()-refD)/86400000%29.53)+29.53)%29.53;
+          // Moon transit at Rostov-on-Don (UTC+3): each synodic day (24h50m) shifts transit ~50min
+          const transitLocal=((p*(24.8333/29.53))+3)%24;
+          const antiLocal=(transitLocal+12)%24;
+          const fmt=h=>{const fh=((h%24)+24)%24;const hh=Math.floor(fh);const mm=Math.round((fh-hh)*60);return `${String(hh).padStart(2,"0")}:${String(mm<60?mm:0).padStart(2,"0")}`;};
+          const periods=[
+            {label:"Лунный меридиан",start:transitLocal-1,dur:2,type:"major",icon:"🌙"},
+            {label:"Лунный надир",start:antiLocal-1,dur:2,type:"major",icon:"🌙"},
+            {label:"Восход луны",start:transitLocal-6.25,dur:1,type:"minor",icon:"🌛"},
+            {label:"Заход луны",start:transitLocal+5.25,dur:1,type:"minor",icon:"🌛"},
+          ].map(pd=>({...pd,s24:((pd.start%24)+24)%24})).sort((a,b)=>a.s24-b.s24);
+          const now=new Date(); const nowH=now.getHours()+now.getMinutes()/60;
+          return(
+            <div style={{...glass(),padding:"12px 14px",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.text}}>🌙 Солунар — время клёва</div>
+                <div style={{fontSize:10,color:C.dimmer}}>{mp.ico}</div>
+              </div>
+              <div style={{fontSize:10,color:C.dimmer,marginBottom:10}}>{mp.tip}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {periods.map(({label,s24,dur,type,icon})=>{
+                  const startFmt=fmt(s24); const endFmt=fmt(s24+dur);
+                  const isNow=nowH>=s24&&nowH<s24+dur;
+                  return(
+                    <div key={label} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:10,background:isNow?"rgba(46,204,113,.1)":"rgba(255,255,255,.04)",border:`1px solid ${isNow?C.accent:C.border}`}}>
+                      <div style={{fontSize:17,flexShrink:0}}>{icon}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:11,fontWeight:700,color:isNow?C.accent:C.text}}>{label}</div>
+                        <div style={{fontSize:10,color:C.muted}}>{startFmt} — {endFmt}</div>
+                      </div>
+                      <div style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:7,background:type==="major"?C.accentDim:"rgba(245,158,11,.12)",color:type==="major"?C.accent:C.gold,border:`1px solid ${type==="major"?C.borderHi:"rgba(245,158,11,.25)"}`}}>
+                        {type==="major"?"ГЛАВНЫЙ":"вторст."}
+                      </div>
+                      {isNow&&<div style={{fontSize:8,fontWeight:800,color:"#07111e",background:C.accent,borderRadius:5,padding:"2px 5px",flexShrink:0,animation:"pulseGlow 1s ease infinite"}}>Сейчас</div>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{fontSize:9,color:C.dimmer,marginTop:8,textAlign:"center"}}>По теории Солунара Дж. Найта · расчёт ориентировочный</div>
+            </div>
+          );
+        })()}
+
         {/* 7-day forecast */}
         {weather.daily && (
           <div style={{...glass(),padding:"12px 14px"}}>
@@ -2616,6 +2663,13 @@
 
     const deleteReport=async id=>{ if(!window.confirm("Удалить отчёт?")) return; await db.collection("reports").doc(id).delete(); };
 
+    const toggleReportLike=async(reportId,currentLikes)=>{
+      if(!user){onLogin();return;}
+      const ref=db.collection("reports").doc(reportId);
+      const hasLiked=(currentLikes||[]).includes(user.uid);
+      await ref.update({likes:hasLiked?firebase.firestore.FieldValue.arrayRemove(user.uid):firebase.firestore.FieldValue.arrayUnion(user.uid)}).catch(()=>{});
+    };
+
     const tagColor=t=>({Официально:"#2ecc71",Гидрология:C.cyan,Запрет:"#ef4444",Клёв:C.gold,Аналитика:C.blue,Соревнования:"#a78bfa"}[t]||C.muted);
     const srcLabel=s=>s==="telegram"?"📱 Telegram":s==="telegram_chat"?"💬 Из чата":null;
 
@@ -2711,6 +2765,12 @@
                 {r.location&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}><MapPin size={11} color={C.muted}/><span style={{fontSize:11,color:C.muted}}>{r.location}</span></div>}
                 {r.fish&&<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:6}}><Fish size={11} color={C.gold}/><span style={{fontSize:11,color:C.gold}}>{r.fish}</span></div>}
                 <div style={{fontSize:13,color:"rgba(232,244,240,.8)",lineHeight:1.6}}>{r.body}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,paddingTop:8,borderTop:`1px solid ${C.border}`}}>
+                  <button onClick={()=>toggleReportLike(r.id,r.likes)} style={{display:"flex",alignItems:"center",gap:4,background:"none",border:`1px solid ${C.border}`,borderRadius:10,padding:"4px 10px",cursor:"pointer",color:(r.likes||[]).includes(user?.uid)?C.gold:C.dimmer,fontSize:12,fontWeight:(r.likes||[]).includes(user?.uid)?700:400}}>
+                    {(r.likes||[]).includes(user?.uid)?"❤️":"🤍"} {(r.likes||[]).length>0?(r.likes||[]).length:""}
+                  </button>
+                  <span style={{fontSize:10,color:C.dimmer,marginLeft:"auto"}}>{(r.likes||[]).length>0?`${(r.likes||[]).length} ${(r.likes||[]).length===1?"лайк":(r.likes||[]).length<5?"лайка":"лайков"}`:""}</span>
+                </div>
               </div>);
             })}
           </div>}
@@ -3264,7 +3324,31 @@
     const [notes, setNotes] = useState("");
     const [saving, setSaving] = useState(false);
     const [savedRec, setSavedRec] = useState(null);
+    const [aiSuggestion, setAiSuggestion] = useState(null);
     const fileRef = useRef();
+
+    const analyzePhoto = (canvas, w, h) => {
+      try {
+        const ctx = canvas.getContext("2d");
+        const d = ctx.getImageData(0, 0, Math.min(w,200), Math.min(h,200)).data;
+        let r=0,g=0,b=0,n=0;
+        for(let i=0;i<d.length;i+=16){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}
+        r/=n; g/=n; b/=n;
+        const bright=(r+g+b)/3;
+        const silver=bright>145&&Math.max(r,g,b)-Math.min(r,g,b)<45;
+        const golden=r>160&&g>120&&b<110&&r>g;
+        const dark=bright<75;
+        const greenish=(g-(r+b)/2)>15;
+        const reddish=(r-(g+b)/2)>20;
+        if(silver&&bright>180) return {id:"pike",name:"Щука",conf:65};
+        if(dark&&!greenish) return {id:"catfish",name:"Сом",conf:58};
+        if(golden&&reddish) return {id:"carp",name:"Карп",conf:62};
+        if(greenish&&!dark) return {id:"perch",name:"Окунь",conf:60};
+        if(silver) return {id:"bream",name:"Лещ",conf:58};
+        if(reddish) return {id:"roach",name:"Тарань",conf:52};
+        return {id:"pike_perch",name:"Судак",conf:48};
+      } catch(e){ return null; }
+    };
 
     const fishFiltered = useMemo(()=>
       fishSearch ? FISH_TYPES.filter(f=>f.name.toLowerCase().includes(fishSearch.toLowerCase())) : FISH_TYPES.slice(0,10)
@@ -3282,7 +3366,7 @@
           if(w>MAX||h>MAX){ if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
           canvas.width=w; canvas.height=h;
           canvas.getContext("2d").drawImage(img,0,0,w,h);
-          canvas.toBlob(blob=>{setPhotoBlob(blob);setPhotoUrl(URL.createObjectURL(blob));setStep(2);}, "image/jpeg", 0.82);
+          canvas.toBlob(blob=>{setPhotoBlob(blob);setPhotoUrl(URL.createObjectURL(blob));const ai=analyzePhoto(canvas,w,h);setAiSuggestion(ai);setStep(2);}, "image/jpeg", 0.82);
         };
         img.src=ev.target.result;
       };
@@ -3361,6 +3445,16 @@
             {step===2&&(
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 {photoUrl&&<img src={photoUrl} alt="" style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:16}}/>}
+                {aiSuggestion&&!fishType&&(
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"rgba(46,204,113,.08)",border:`1px solid ${C.borderHi}`,borderRadius:12}}>
+                    <div style={{fontSize:22}}>🤖</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:.5}}>ИИ РАСПОЗНАЛ</div>
+                      <div style={{fontSize:13,color:C.text,fontWeight:700}}>{aiSuggestion.name} <span style={{fontSize:10,color:C.muted,fontWeight:400}}>({aiSuggestion.conf}%)</span></div>
+                    </div>
+                    <button onClick={()=>{const f=FISH_TYPES.find(f=>f.id===aiSuggestion.id);if(f){setFishType(f);setFishSearch("");}}} style={{padding:"6px 12px",background:C.accentDim,border:`1px solid ${C.accent}`,borderRadius:10,color:C.accent,fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>Принять</button>
+                  </div>
+                )}
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700,letterSpacing:.5}}>ВИД РЫБЫ</div>
                   {fishType?(

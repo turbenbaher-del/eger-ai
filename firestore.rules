@@ -14,7 +14,11 @@ service cloud.firestore {
     match /reports/{recordId} {
       allow read: if isAuth();
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isAuth() && resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+      );
+      allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
     // Значки: читать может любой авторизованный, писать — только Cloud Functions (сервисный аккаунт)
