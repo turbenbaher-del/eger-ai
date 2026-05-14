@@ -1506,10 +1506,11 @@
       "https://news.google.com/rss/search?q=рыболовство+запрет+нерест&hl=ru&gl=RU&ceid=RU:ru",
     ];
     const proxy = "https://api.allorigins.win/get?url=";
+    const ts = Date.now();
     const items = [];
     for(const feed of feeds){
       try{
-        const r = await fetch(proxy + encodeURIComponent(feed));
+        const r = await fetch(proxy + encodeURIComponent(feed) + `&_=${ts}`);
         const d = await r.json();
         const xml = new DOMParser().parseFromString(d.contents,"text/xml");
         xml.querySelectorAll("item").forEach(el=>{
@@ -1571,8 +1572,15 @@
               fresh.forEach(it=>seenIdsRef.current.add(it.id));
               setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
               setNewCount(n=>n+fresh.length);
+              setNewsItems(prev=>[...fresh,...prev].slice(0,30));
+            } else if(items.length>0){
+              setNewsItems(prev=>{
+                const existingIds=new Set(prev.map(p=>p.id));
+                const merged=[...prev];
+                items.forEach(it=>{ if(!existingIds.has(it.id)) merged.push(it); });
+                return merged.slice(0,30);
+              });
             }
-            setNewsItems(items);
             setLastUpdated(new Date());
           }
         }catch(e){ console.log("news err",e); }
