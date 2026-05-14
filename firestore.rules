@@ -35,10 +35,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Турниры: только чтение
+    // Турниры: только чтение; участники — пользователь пишет свою запись
     match /tournaments/{tournamentId} {
       allow read: if isAuth();
       allow write: if false;
+    }
+    match /tournaments/{tournamentId}/participants/{userId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && isOwner(userId);
     }
 
     // Чат сообщества
@@ -70,6 +74,13 @@ service cloud.firestore {
     match /news/{docId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // Предложенные точки (модерируются)
+    match /suggested_spots/{docId} {
+      allow read: if false; // только Cloud Functions и модераторы
+      allow create: if isAuth() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
     }
   }
 }
