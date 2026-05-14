@@ -2379,7 +2379,7 @@
   }
 
   /* ── PROFILE ── */
-  function ProfileScreen({ user, onLogin }) {
+  function ProfileScreen({ user, onLogin, onNav }) {
     if (!user) return <RequireAuth user={user} onLogin={onLogin}><div/></RequireAuth>;
     const [profileUsername, setProfileUsername] = useState("");
     const [catchStats, setCatchStats] = useState(null);
@@ -2422,6 +2422,8 @@
         ];
 
     const menu=[
+      {Icon:Trophy,label:"Рейтинг рыбаков",nav:"leaderboard"},
+      {Icon:Star,label:"Турниры",nav:"tournament"},
       {Icon:AlertCircle,label:"Telegram-бот @egerai_bot",href:"https://t.me/egerai_bot"},
       {Icon:Gauge,label:"Настройки",href:"#"},
     ];
@@ -2461,12 +2463,20 @@
           </div>
         )}
 
-        {menu.map(({Icon,label,href})=>(
-          <a key={label} href={href} target={href.startsWith("http")?"_blank":"_self"} rel="noreferrer" style={{textDecoration:"none"}}>
-            <div style={{...glass(),padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-              <Icon size={18} color={C.accent}/><span style={{fontSize:14,color:C.text,flex:1}}>{label}</span><ChevronRight size={15} color={C.dimmer}/>
-            </div>
-          </a>
+        {menu.map(({Icon,label,href,nav})=>(
+          nav ? (
+            <button key={label} onClick={()=>onNav&&onNav(nav)} style={{width:"100%",background:"none",border:"none",padding:0,textAlign:"left",cursor:"pointer",marginBottom:8}}>
+              <div style={{...glass(),padding:"14px 16px",display:"flex",alignItems:"center",gap:12}}>
+                <Icon size={18} color={C.accent}/><span style={{fontSize:14,color:C.text,flex:1}}>{label}</span><ChevronRight size={15} color={C.dimmer}/>
+              </div>
+            </button>
+          ) : (
+            <a key={label} href={href} target={href.startsWith("http")?"_blank":"_self"} rel="noreferrer" style={{textDecoration:"none"}}>
+              <div style={{...glass(),padding:"14px 16px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+                <Icon size={18} color={C.accent}/><span style={{fontSize:14,color:C.text,flex:1}}>{label}</span><ChevronRight size={15} color={C.dimmer}/>
+              </div>
+            </a>
+          )
         ))}
         <button onClick={()=>auth.signOut()} style={{width:"100%",marginTop:8,padding:"14px 16px",borderRadius:20,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.1)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,cursor:"pointer"}}>
           <LogOut size={18} color="#f87171"/><span style={{fontSize:14,color:"#f87171",fontWeight:700}}>Выйти из аккаунта</span>
@@ -2653,6 +2663,85 @@
         }
       }
     } catch(e){ console.log("badges err",e); }
+  }
+
+  /* ── Share Card ── */
+  async function generateShareCard(record) {
+    const fish = FISH_TYPES.find(f=>f.id===record.fishType);
+    const fishName = fish?.name||record.fishName||"Рыба";
+    const weightStr = record.weightGrams?`${(record.weightGrams/1000).toFixed(1)} кг`:"";
+    const loc = record.locationName||"Место не указано";
+    const dateStr = (()=>{
+      const d = record.createdAt?.toDate?record.createdAt.toDate():new Date();
+      return d.toLocaleDateString("ru-RU",{day:"2-digit",month:"long",year:"numeric"});
+    })();
+    const canvas = document.createElement("canvas");
+    canvas.width=1080; canvas.height=1080;
+    const ctx = canvas.getContext("2d");
+    const bg = ctx.createLinearGradient(0,0,1080,1080);
+    bg.addColorStop(0,"#07111e"); bg.addColorStop(1,"#0a192f");
+    ctx.fillStyle=bg; ctx.fillRect(0,0,1080,1080);
+    const glow = ctx.createRadialGradient(200,200,0,200,200,500);
+    glow.addColorStop(0,"rgba(46,204,113,0.18)"); glow.addColorStop(1,"transparent");
+    ctx.fillStyle=glow; ctx.fillRect(0,0,1080,1080);
+    if (record.photoUrls?.[0]) {
+      try {
+        const img = await new Promise((res,rej)=>{
+          const i=new Image(); i.crossOrigin="anonymous";
+          i.onload=()=>res(i); i.onerror=rej; i.src=record.photoUrls[0];
+        });
+        const scale = Math.max(1080/img.width, 1080/img.height);
+        const dw=img.width*scale, dh=img.height*scale;
+        ctx.drawImage(img,(1080-dw)/2,(1080-dh)/2,dw,dh);
+        const ov=ctx.createLinearGradient(0,0,0,1080);
+        ov.addColorStop(0,"rgba(7,17,30,0.3)"); ov.addColorStop(0.5,"rgba(7,17,30,0.05)");
+        ov.addColorStop(1,"rgba(7,17,30,0.94)");
+        ctx.fillStyle=ov; ctx.fillRect(0,0,1080,1080);
+      } catch(e){}
+    }
+    // logo chip
+    ctx.fillStyle="rgba(7,17,30,0.8)";
+    ctx.beginPath(); ctx.roundRect(40,40,280,56,12); ctx.fill();
+    ctx.fillStyle="#2ecc71"; ctx.font="bold 28px sans-serif";
+    ctx.fillText("ЕГЕРЬ ИИ", 64, 78);
+    ctx.fillStyle="rgba(255,255,255,0.45)"; ctx.font="22px sans-serif";
+    ctx.fillText("eger-ai.app", 64, 104);
+    // bottom card
+    ctx.fillStyle="rgba(7,17,30,0.86)";
+    ctx.beginPath(); ctx.roundRect(40,800,1000,240,20); ctx.fill();
+    ctx.strokeStyle="rgba(46,204,113,0.35)"; ctx.lineWidth=1.5; ctx.stroke();
+    // fish + weight
+    ctx.fillStyle="#ffffff"; ctx.font="bold 68px sans-serif";
+    ctx.fillText(fishName,70,890);
+    if(weightStr){
+      ctx.fillStyle="#2ecc71"; ctx.font="bold 76px sans-serif";
+      const nm=ctx.measureText(fishName);
+      ctx.fillText(weightStr,76+nm.width,890);
+    }
+    ctx.fillStyle="rgba(255,255,255,0.55)"; ctx.font="30px sans-serif";
+    ctx.fillText("📍 "+loc.slice(0,46)+(loc.length>46?"…":""),70,945);
+    ctx.fillStyle="rgba(34,211,238,0.85)"; ctx.font="26px sans-serif";
+    ctx.fillText(dateStr,70,990);
+    return canvas.toDataURL("image/jpeg",0.92);
+  }
+
+  async function doShareCard(record) {
+    let dataUrl;
+    try { dataUrl = await generateShareCard(record); } catch(e){ console.error("share card err",e); return; }
+    const fish = FISH_TYPES.find(f=>f.id===record.fishType);
+    const title = `${fish?.name||"Рыба"} ${record.weightGrams?(record.weightGrams/1000).toFixed(1)+" кг":""} — Егерь ИИ`;
+    if (navigator.canShare) {
+      try {
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob],"catch.jpg",{type:"image/jpeg"});
+        if (navigator.canShare({files:[file]})) {
+          await navigator.share({files:[file],title,text:"Мой улов: "+title});
+          logEvent("catch_shared",{method:"web_share"}); return;
+        }
+      } catch(e){ if(e.name==="AbortError") return; }
+    }
+    const a=document.createElement("a"); a.href=dataUrl; a.download="catch-eger.jpg"; a.click();
+    logEvent("catch_shared",{method:"download"});
   }
 
   /* ── CatchModal ── */
@@ -2937,6 +3026,11 @@
             {record.notes&&<div style={{...glass(),padding:"10px 14px",fontSize:13,color:C.text}}><span style={{color:C.muted}}>Заметка: </span>{record.notes}</div>}
             {record.weather&&<div style={{...glass(),padding:"10px 14px",fontSize:12,color:C.muted}}>🌡 {record.weather.temp}°C · Ветер {record.weather.windSpeed} м/с · {record.weather.pressure} мм{record.weather.biteIndex?` · Клёв ${record.weather.biteIndex}/10`:""}</div>}
           </div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <button onClick={()=>doShareCard(record)} style={{flex:1,padding:"12px",background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",borderRadius:14,color:C.cyan,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+              📤 Поделиться
+            </button>
+          </div>
           <div style={{display:"flex",gap:8}}>
             {!published&&!record.isPublic&&(
               <button onClick={handlePublish} style={{flex:1,padding:"12px",background:C.accentDim,border:`1px solid ${C.accent}`,borderRadius:14,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer"}}>
@@ -3177,6 +3271,181 @@
     );
   }
 
+  /* ── OnboardingModal ── */
+  function OnboardingModal({ onDone }) {
+    const [step, setStep] = useState(0);
+    const steps = [
+      {emoji:"🎣",title:"Дневник уловов",desc:"Добавляй уловы с фото, весом и местом — следи за своим прогрессом и получай значки"},
+      {emoji:"🤖",title:"ИИ-помощник Егерь",desc:"Анализирует клёв, давление, луну и погоду — спроси когда и где лучше ловить"},
+      {emoji:"📍",title:"Карта и рейтинг",desc:"Находи лучшие точки ловли, делись уловами с сообществом и попадай в топ рыбаков"},
+    ];
+    const cur = steps[step];
+    return (
+      <div style={{position:"fixed",inset:0,background:"rgba(7,17,30,.98)",zIndex:9999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,maxWidth:430,margin:"0 auto"}}>
+        <div style={{fontSize:84,marginBottom:28,animation:"fabPulse 2.5s ease infinite"}}>{cur.emoji}</div>
+        <div style={{fontSize:26,fontWeight:800,color:C.text,textAlign:"center",marginBottom:14,fontFamily:"'Bebas Neue',cursive",letterSpacing:1}}>{cur.title}</div>
+        <div style={{fontSize:16,color:C.muted,textAlign:"center",lineHeight:1.65,marginBottom:44,maxWidth:300}}>{cur.desc}</div>
+        <div style={{display:"flex",gap:8,marginBottom:36}}>
+          {steps.map((_,i)=>(
+            <div key={i} style={{width:i===step?30:8,height:8,borderRadius:4,background:i===step?C.accent:C.surface,transition:"width .3s ease"}}/>
+          ))}
+        </div>
+        {step<steps.length-1?(
+          <button onClick={()=>setStep(s=>s+1)} style={{width:"100%",maxWidth:320,padding:"16px",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,border:"none",borderRadius:20,color:"#07111e",fontSize:16,fontWeight:800,cursor:"pointer",letterSpacing:.5}}>
+            Далее →
+          </button>
+        ):(
+          <button onClick={onDone} style={{width:"100%",maxWidth:320,padding:"16px",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,border:"none",borderRadius:20,color:"#07111e",fontSize:16,fontWeight:800,cursor:"pointer",letterSpacing:.5}}>
+            🎣 Начать ловить!
+          </button>
+        )}
+        <button onClick={onDone} style={{marginTop:14,background:"none",border:"none",color:C.dimmer,fontSize:12,cursor:"pointer"}}>Пропустить</button>
+      </div>
+    );
+  }
+
+  /* ── LeaderboardScreen ── */
+  function LeaderboardScreen({ onBack }) {
+    const [period, setPeriod] = useState("week");
+    const [rows, setRows] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(()=>{
+      logEvent("leaderboard_viewed",{period});
+      setLoading(true); setRows([]);
+      let q = db.collection("reports").orderBy("createdAt","desc").limit(500);
+      if(period==="week"){
+        const since=new Date(); since.setDate(since.getDate()-7);
+        q=db.collection("reports").where("createdAt",">=",firebase.firestore.Timestamp.fromDate(since)).orderBy("createdAt","desc").limit(500);
+      } else if(period==="month"){
+        const since=new Date(); since.setMonth(since.getMonth()-1);
+        q=db.collection("reports").where("createdAt",">=",firebase.firestore.Timestamp.fromDate(since)).orderBy("createdAt","desc").limit(500);
+      }
+      q.get().then(snap=>{
+        const map={};
+        snap.docs.forEach(d=>{
+          const r=d.data(); const uid=r.userId||"anon";
+          if(!map[uid]) map[uid]={userId:uid,author:r.author||"Рыбак",catches:0,totalKg:0,best:0};
+          map[uid].catches++;
+          const kg=parseFloat(r.weight)||0;
+          map[uid].totalKg+=kg;
+          if(kg>map[uid].best) map[uid].best=kg;
+        });
+        setRows(Object.values(map).sort((a,b)=>b.totalKg-a.totalKg||b.catches-a.catches).slice(0,50));
+        setLoading(false);
+      }).catch(()=>setLoading(false));
+    },[period]);
+
+    const medals=["🥇","🥈","🥉"];
+    return (
+      <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+        <div style={{padding:"12px 14px",display:"flex",alignItems:"center",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:"rgba(7,17,30,.9)",position:"sticky",top:0,zIndex:2}}>
+          <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 10px 4px 0"}}>←</button>
+          <div style={{flex:1,fontSize:17,fontWeight:800,color:C.text}}>🏆 Рейтинг рыбаков</div>
+        </div>
+        <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",flexShrink:0}}>
+          {[{id:"week",label:"Неделя"},{id:"month",label:"Месяц"},{id:"all",label:"Все"}].map(t=>(
+            <button key={t.id} onClick={()=>setPeriod(t.id)} style={{flex:1,padding:"10px 0",border:"none",background:"none",cursor:"pointer",fontSize:12,fontWeight:700,color:period===t.id?C.accent:C.muted,borderBottom:period===t.id?`2px solid ${C.accent}`:"2px solid transparent",transition:"all .2s"}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"8px 14px 24px"}}>
+          {loading&&[1,2,3,4,5].map(i=><div key={i} style={{height:62,borderRadius:14,background:C.surface,marginBottom:8,animation:"pulseGlow 1.5s ease infinite"}}/>)}
+          {!loading&&rows.length===0&&<div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>Нет данных за этот период</div>}
+          {!loading&&rows.map((r,i)=>(
+            <div key={r.userId} style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,borderRadius:16,border:`1px solid ${i<3?`rgba(46,204,113,${0.4-i*0.1})`:C.border}`}}>
+              <div style={{fontSize:i<3?26:13,fontWeight:800,color:i<3?C.accent:C.dimmer,width:30,textAlign:"center",flexShrink:0}}>{i<3?medals[i]:i+1}</div>
+              <div style={{width:36,height:36,borderRadius:18,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#07111e",flexShrink:0}}>
+                {(r.author||"Р")[0].toUpperCase()}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:14,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.author}</div>
+                <div style={{fontSize:11,color:C.muted}}>{r.catches} улов{r.catches===1?"":"ов"} · лучший {r.best.toFixed(1)} кг</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:17,fontWeight:800,color:C.accent}}>{r.totalKg.toFixed(1)}</div>
+                <div style={{fontSize:10,color:C.dimmer}}>кг</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── TournamentScreen ── */
+  function TournamentScreen({ onBack }) {
+    const [tournaments, setTournaments] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(()=>{
+      logEvent("tournament_viewed");
+      const unsub=db.collection("tournaments").orderBy("startDate","asc")
+        .onSnapshot(snap=>{ setTournaments(snap.docs.map(d=>({...d.data(),id:d.id}))); setLoading(false); },
+        ()=>setLoading(false));
+      return unsub;
+    },[]);
+
+    const now=Date.now();
+    const active=tournaments.filter(t=>{const s=t.startDate?.toMillis?.()??0,e=t.endDate?.toMillis?.()??0;return s<=now&&e>=now;});
+    const upcoming=tournaments.filter(t=>{const s=t.startDate?.toMillis?.()??0;return s>now;});
+    const past=tournaments.filter(t=>{const e=t.endDate?.toMillis?.()??0;return e<now;});
+
+    function Countdown({toMs}){
+      const [diff,setDiff]=useState(Math.max(0,toMs-Date.now()));
+      useEffect(()=>{const t=setInterval(()=>setDiff(Math.max(0,toMs-Date.now())),1000);return()=>clearInterval(t);},[toMs]);
+      const s=Math.floor(diff/1000),m=Math.floor(s/60),h=Math.floor(m/60),d=Math.floor(h/24);
+      if(d>0) return <span>{d}д {h%24}ч</span>;
+      if(h>0) return <span>{h}ч {m%60}мин</span>;
+      return <span>{m}:{String(s%60).padStart(2,"0")}</span>;
+    }
+
+    function TCard({t,status}){
+      const start=t.startDate?.toDate?.()??new Date();
+      const end=t.endDate?.toDate?.()??new Date();
+      const statusBadge={active:{bg:C.accentDim,border:`1px solid ${C.accent}`,color:C.accent,text:"● ИДЁТ СЕЙЧАС"},upcoming:{bg:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",color:C.cyan,text:"⏳ СКОРО"},past:{bg:C.surface,border:`1px solid ${C.border}`,color:C.muted,text:"✓ ЗАВЕРШЁН"}}[status];
+      return (
+        <div style={{...glass(),padding:"14px",marginBottom:10,borderRadius:16,border:`1px solid ${status==="active"?C.accent:C.border}`}}>
+          <div style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:10,fontWeight:700,marginBottom:8,...statusBadge}}>{statusBadge.text}</div>
+          <div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>{t.title||"Турнир"}</div>
+          {t.description&&<div style={{fontSize:12,color:C.muted,marginBottom:8}}>{t.description}</div>}
+          <div style={{display:"flex",gap:12,fontSize:11,color:C.dimmer,marginBottom:status!=="past"?8:0,flexWrap:"wrap"}}>
+            <span>📅 {start.toLocaleDateString("ru-RU",{day:"2-digit",month:"short"})} — {end.toLocaleDateString("ru-RU",{day:"2-digit",month:"short"})}</span>
+            {t.prize&&<span>🏅 {t.prize}</span>}
+            {t.participants&&<span>👥 {t.participants} участников</span>}
+          </div>
+          {status==="active"&&<div style={{fontSize:12,color:C.cyan,fontWeight:700}}>⏱ Осталось: <Countdown toMs={end.getTime()}/></div>}
+          {status==="upcoming"&&<div style={{fontSize:12,color:C.accent,fontWeight:700}}>⏳ До старта: <Countdown toMs={start.getTime()}/></div>}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+        <div style={{padding:"12px 14px",display:"flex",alignItems:"center",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:"rgba(7,17,30,.9)",position:"sticky",top:0,zIndex:2}}>
+          <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 10px 4px 0"}}>←</button>
+          <div style={{flex:1,fontSize:17,fontWeight:800,color:C.text}}>🏅 Турниры</div>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"12px 14px 24px"}}>
+          {loading&&[1,2].map(i=><div key={i} style={{height:120,borderRadius:16,background:C.surface,marginBottom:10,animation:"pulseGlow 1.5s ease infinite"}}/>)}
+          {!loading&&active.length===0&&upcoming.length===0&&past.length===0&&(
+            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+              <div style={{fontSize:52,marginBottom:12}}>🏅</div>
+              <div style={{fontSize:16,fontWeight:700,color:C.text,marginBottom:8}}>Турниров пока нет</div>
+              <div style={{fontSize:13}}>Следите за анонсами в новостях</div>
+            </div>
+          )}
+          {!loading&&active.map(t=><TCard key={t.id} t={t} status="active"/>)}
+          {!loading&&upcoming.length>0&&<div style={{fontSize:11,color:C.dimmer,fontWeight:700,marginBottom:6,marginTop:4,letterSpacing:.5}}>ПРЕДСТОЯЩИЕ</div>}
+          {!loading&&upcoming.map(t=><TCard key={t.id} t={t} status="upcoming"/>)}
+          {!loading&&past.length>0&&<div style={{fontSize:11,color:C.dimmer,fontWeight:700,marginBottom:6,marginTop:8,letterSpacing:.5}}>ПРОШЕДШИЕ</div>}
+          {!loading&&past.map(t=><TCard key={t.id} t={t} status="past"/>)}
+        </div>
+      </div>
+    );
+  }
+
   /* ── APP ── */
   function App() {
     const [user, setUser] = useState(null);
@@ -3184,6 +3453,7 @@
     const [showAuth, setShowAuth] = useState(false);
     const [tab, setTab] = useState("home");
     const [showCatch, setShowCatch] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(()=>!localStorage.getItem("eger_onboarded"));
     const [weather, setWeather] = useState(null);
     const [weatherLoading, setWeatherLoading] = useState(false);
     const [unreadChat, setUnreadChat] = useState(0);
@@ -3305,6 +3575,7 @@
       <div style={{maxWidth:430,margin:"0 auto",height:"100dvh",display:"flex",flexDirection:"column",background:"linear-gradient(180deg,#07111e 0%,#0a192f 100%)",position:"relative",overflow:"hidden"}}>
         {showAuth && <AuthModal onClose={()=>setShowAuth(false)} onSuccess={()=>setShowAuth(false)}/>}
         {showCatch && user && <CatchModal user={user} userLat={userLat} userLon={userLon} weather={weather} onClose={()=>setShowCatch(false)}/>}
+        {showOnboarding && <OnboardingModal onDone={()=>{ localStorage.setItem("eger_onboarded","1"); setShowOnboarding(false); }}/>}
         {user && !showCatch && (
           <button onClick={()=>{logEvent("catch_button_tapped");setShowCatch(true);}}
             style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom,0px) + 76px)",right:"max(calc(50vw - 199px),16px)",width:60,height:60,borderRadius:30,background:"linear-gradient(135deg,#1a8a50,#2ecc71)",border:"none",cursor:"pointer",zIndex:99,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,animation:"fabPulse 3s ease infinite"}}>
@@ -3348,7 +3619,9 @@
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
           {tab==="weather"   && <WeatherScreen weather={weather} weatherLoading={weatherLoading} onRefresh={loadWeather}/>}
-          {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)}/>}
+          {tab==="leaderboard"&&<LeaderboardScreen onBack={()=>goTab("profile")}/>}
+          {tab==="tournament" &&<TournamentScreen onBack={()=>goTab("profile")}/>}
+          {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)} onNav={goTab}/>}
         </main>
 
         <nav style={{display:"flex",background:"rgba(7,17,30,.95)",backdropFilter:"blur(24px)",borderTop:`1px solid ${C.border}`,paddingBottom:"env(safe-area-inset-bottom,6px)",position:"relative",zIndex:10}}>
