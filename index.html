@@ -1145,8 +1145,8 @@
     useEffect(()=>{
       if(!userLat||!userLon) return;
       const since = new Date(Date.now() - 6*60*60*1000);
-      db.collection("reports").where("createdAt",">=",firebase.firestore.Timestamp.fromDate(since))
-        .orderBy("createdAt","desc").limit(50).get()
+      db.collection("reports").where("timestamp",">=",firebase.firestore.Timestamp.fromDate(since))
+        .orderBy("timestamp","desc").limit(50).get()
         .then(snap=>{
           const near = snap.docs.map(d=>({...d.data(),id:d.id})).filter(r=>{
             const rlon = r.lon||r.lng;
@@ -1207,11 +1207,11 @@
       let nearbyLine="";
       if(nearbyCatches.length>0){
         const nc=nearbyCatches[0];
-        const ms=nc.createdAt?.toMillis?.()??Date.now();
+        const ms=nc.timestamp?.toMillis?.()??Date.now();
         const mins=Math.round((Date.now()-ms)/60000);
         const t=mins<60?`${mins} мин`:`${Math.floor(mins/60)}ч`;
         const dist=userLat?Math.round(haversine(userLat,userLon,nc.lat,nc.lng||nc.lon)):null;
-        nearbyLine=`⚡ ${nc.author||"Рыбак"} поймал ${nc.fish||"рыбу"} ${nc.weight?nc.weight+" кг ":""}${dist?`в ${dist} км `:""} — ${t} назад!`;
+        nearbyLine=`⚡ ${nc.displayName||"Рыбак"} поймал ${nc.fish||"рыбу"} ${nc.weight?nc.weight+" кг ":""}${dist?`в ${dist} км `:""} — ${t} назад!`;
       }
       return [moon.ico,mainLine,pLine,personalLine,extraTip,nearbyLine].filter(Boolean).join(" ");
     },[weather,userProfile,nowHour,month,nearestSpots,currentBody,nearbyCatches,userLat,userLon]);
@@ -1316,14 +1316,14 @@
             <div style={{fontSize:11,color:C.accent,fontWeight:700,letterSpacing:1.5,marginBottom:8}}>📍 ПОЙМАЛИ РЯДОМ (последние 6 ч)</div>
             {nearbyCatches.map((r,i)=>{
               const dist=Math.round(haversine(userLat,userLon,r.lat,r.lon||r.lng));
-              const mins=Math.round((Date.now()-r.createdAt?.toMillis?.())/60000);
+              const mins=Math.round((Date.now()-(r.timestamp?.toMillis?.()??Date.now()))/60000);
               const timeStr=mins<60?`${mins} мин назад`:`${Math.floor(mins/60)} ч назад`;
               return (
                 <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,padding:i>0?"8px 0 0":"0",borderTop:i>0?`1px solid ${C.border}`:"none"}}>
                   <div style={{width:32,height:32,borderRadius:8,background:C.accentDim,border:`1px solid ${C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:16}}>🐟</div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.fish||"Улов"} {r.weight?`· ${r.weight} кг`:""}</div>
-                    <div style={{fontSize:10,color:C.muted}}>{r.author||"Рыбак"} · {dist} км · {timeStr}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.fish||r.title||"Улов"} {r.weight?`· ${r.weight} кг`:""}</div>
+                    <div style={{fontSize:10,color:C.muted}}>{r.displayName||"Рыбак"} · {dist} км · {timeStr}</div>
                   </div>
                 </div>
               );
@@ -4782,19 +4782,19 @@
     },[period]);
 
     const computeFromReports = (period) => {
-      let q = db.collection("reports").orderBy("createdAt","desc").limit(500);
+      let q = db.collection("reports").orderBy("timestamp","desc").limit(500);
       if(period==="week"){
         const since=new Date(); since.setDate(since.getDate()-7);
-        q=db.collection("reports").where("createdAt",">=",firebase.firestore.Timestamp.fromDate(since)).orderBy("createdAt","desc").limit(500);
+        q=db.collection("reports").where("timestamp",">=",firebase.firestore.Timestamp.fromDate(since)).orderBy("timestamp","desc").limit(500);
       } else if(period==="month"){
         const since=new Date(); since.setMonth(since.getMonth()-1);
-        q=db.collection("reports").where("createdAt",">=",firebase.firestore.Timestamp.fromDate(since)).orderBy("createdAt","desc").limit(500);
+        q=db.collection("reports").where("timestamp",">=",firebase.firestore.Timestamp.fromDate(since)).orderBy("timestamp","desc").limit(500);
       }
       q.get().then(snap=>{
         const map={};
         snap.docs.forEach(d=>{
-          const r=d.data(); const uid=r.userId||"anon";
-          if(!map[uid]) map[uid]={userId:uid,author:r.author||"Рыбак",catches:0,totalKg:0,best:0};
+          const r=d.data(); const uid=r.uid||r.userId||"anon";
+          if(!map[uid]) map[uid]={userId:uid,author:r.displayName||r.author||"Рыбак",catches:0,totalKg:0,best:0};
           map[uid].catches++;
           const kg=parseFloat(r.weight)||0;
           map[uid].totalKg+=kg;

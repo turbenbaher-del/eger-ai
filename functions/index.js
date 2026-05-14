@@ -88,14 +88,14 @@ exports.aggregateLeaderboard = functions
 
     for (const [period, since] of Object.entries(periods)) {
       const snap = await db.collection("reports")
-        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(since))
+        .where("timestamp", ">=", admin.firestore.Timestamp.fromDate(since))
         .get();
 
       const map = {};
       snap.docs.forEach(d => {
         const r = d.data();
-        const uid = r.userId || "anon";
-        if (!map[uid]) map[uid] = { userId: uid, author: r.author || "Рыбак", catches: 0, totalKg: 0, best: 0 };
+        const uid = r.uid || r.userId || "anon";
+        if (!map[uid]) map[uid] = { userId: uid, author: r.displayName || r.author || "Рыбак", catches: 0, totalKg: 0, best: 0 };
         map[uid].catches++;
         const kg = parseFloat(r.weight) || 0;
         map[uid].totalKg += kg;
