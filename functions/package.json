@@ -2,7 +2,7 @@
   "name": "eger-ai-functions",
   "description": "Egер AI Cloud Functions",
   "scripts": { "deploy": "firebase deploy --only functions" },
-  "engines": { "node": "18" },
+  "engines": { "node": "22" },
   "main": "index.js",
   "dependencies": {
     "firebase-admin": "^11.11.0",
