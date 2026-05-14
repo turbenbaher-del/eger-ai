@@ -136,7 +136,7 @@
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       "&current=temperature_2m,wind_speed_10m,wind_direction_10m,surface_pressure,weather_code,relative_humidity_2m" +
       "&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,sunrise,sunset" +
-      "&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code" +
+      "&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code,surface_pressure" +
       "&forecast_days=7&wind_speed_unit=ms&timezone=Europe%2FMoscow";
     const r = await fetch(url);
     const d = await r.json();
@@ -1532,7 +1532,7 @@
             {[
               {ico:"💨",val:`${weather.wind} м/с`,lbl:(()=>{const dirs=["С","СВ","В","ЮВ","Ю","ЮЗ","З","СЗ"];return "Ветер "+dirs[Math.round((weather.windDir||0)/45)%8];})()},
               {ico:"💧",val:`${weather.humidity}%`,lbl:"Влажность"},
-              {ico:"⏱",val:`${weather.pressure} мм`,lbl:"Давление"},
+              {ico:"⏱",val:`${weather.pressure} мм`,lbl:(()=>{if(!weather.hourly?.surface_pressure)return "Давление";const hr=new Date().getHours();const p3ago=Math.round((weather.hourly.surface_pressure[Math.max(0,hr-3)]||weather.pressure/0.750064)*0.750064);const diff=weather.pressure-p3ago;return diff>2?"⬆ Растёт":diff<-2?"⬇ Падает":"→ Стабильно";})()},
             ].map(({ico,val,lbl})=>(
               <div key={lbl} style={{background:"rgba(255,255,255,.05)",borderRadius:10,padding:"8px 4px",textAlign:"center"}}>
                 <div style={{fontSize:20}}>{ico}</div>
@@ -3798,16 +3798,40 @@
             </div>
           </div>
           {/* Weight & length */}
-          <div style={{display:"flex",gap:10,marginBottom:12}}>
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ВЕС (КГ)</div>
-              <input type="number" step="0.1" min="0" value={weightKg} onChange={e=>setWeightKg(e.target.value)} placeholder="0.0" style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ДЛИНА (СМ)</div>
-              <input type="number" step="1" min="0" value={lengthCm} onChange={e=>setLengthCm(e.target.value)} placeholder="0" style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/>
-            </div>
-          </div>
+          {(()=>{
+            const LW_PARAMS={pike:{a:0.0059,b:3.05},perch:{a:0.0105,b:3.00},bream:{a:0.0066,b:3.13},carp:{a:0.0132,b:3.16},roach:{a:0.0080,b:3.06},tench:{a:0.0093,b:3.04},catfish:{a:0.0152,b:2.88},pike_perch:{a:0.0079,b:3.00},crucian:{a:0.0184,b:3.05},asp:{a:0.0088,b:3.00}};
+            const p=LW_PARAMS[fishType]||{a:0.01,b:3.0};
+            const L=parseFloat(lengthCm);
+            const predG=L>5?p.a*Math.pow(L,p.b):null;
+            const predKg=predG?Math.round(predG)/1000:null;
+            return(
+              <div style={{display:"flex",gap:10,marginBottom:predKg&&!weightKg?4:12}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ВЕС (КГ)</div>
+                  <input type="number" step="0.1" min="0" value={weightKg} onChange={e=>setWeightKg(e.target.value)} placeholder={predKg?`~${predKg.toFixed(2)}`:"0.0"} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ДЛИНА (СМ)</div>
+                  <input type="number" step="1" min="0" value={lengthCm} onChange={e=>setLengthCm(e.target.value)} placeholder="0" style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/>
+                </div>
+              </div>
+            );
+          })()}
+          {(()=>{
+            const LW_PARAMS={pike:{a:0.0059,b:3.05},perch:{a:0.0105,b:3.00},bream:{a:0.0066,b:3.13},carp:{a:0.0132,b:3.16},roach:{a:0.0080,b:3.06},tench:{a:0.0093,b:3.04},catfish:{a:0.0152,b:2.88},pike_perch:{a:0.0079,b:3.00},crucian:{a:0.0184,b:3.05},asp:{a:0.0088,b:3.00}};
+            const p=LW_PARAMS[fishType]||{a:0.01,b:3.0};
+            const L=parseFloat(lengthCm);
+            const predG=L>5?p.a*Math.pow(L,p.b):null;
+            const predKg=predG?Math.round(predG)/1000:null;
+            if(!predKg||weightKg) return null;
+            return(
+              <div onClick={()=>setWeightKg(predKg.toFixed(2))} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:8,background:"rgba(46,204,113,.07)",border:`1px solid ${C.borderHi}`,marginBottom:12,cursor:"pointer"}}>
+                <span style={{fontSize:11,color:C.accent}}>🧮 Расчётный вес по длине {lengthCm} см:</span>
+                <span style={{fontSize:12,fontWeight:700,color:C.accent}}>~{predKg.toFixed(2)} кг</span>
+                <span style={{fontSize:10,color:C.muted,marginLeft:"auto"}}>Нажать чтобы вставить</span>
+              </div>
+            );
+          })()}
           {/* Location & date */}
           <div style={{marginBottom:12}}>
             <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>МЕСТО</div>
