@@ -1517,6 +1517,16 @@
   /* ── WEATHER ── */
   function WeatherScreen({ weather, weatherLoading, onRefresh }) {
     useEffect(()=>{ logEvent("forecast_viewed"); },[]);
+    const [histWeather, setHistWeather] = useState(null);
+    useEffect(()=>{
+      const lat=_uLat||47.27, lon=_uLon||39.87;
+      const d=new Date(); d.setFullYear(d.getFullYear()-1);
+      const date=d.toISOString().slice(0,10);
+      fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${date}&end_date=${date}&daily=temperature_2m_max,weather_code,wind_speed_10m_max&timezone=Europe%2FMoscow`)
+        .then(r=>r.json()).then(j=>{
+          if(j.daily) setHistWeather({maxT:Math.round(j.daily.temperature_2m_max[0]),code:j.daily.weather_code[0],wind:Math.round(j.daily.wind_speed_10m_max[0]),date});
+        }).catch(()=>{});
+    },[]);
     const DAYS_RU = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
 
     const wIcon = (code) => {
@@ -1858,6 +1868,20 @@
             </div>
           );
         })()}
+
+        {/* Year-ago history */}
+        {histWeather&&(
+          <div style={{...glass(),padding:"12px 14px",marginTop:10,background:"rgba(255,255,255,.03)"}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8,letterSpacing:.5}}>📅 ГОД НАЗАД · {new Date(histWeather.date+"T12:00").toLocaleDateString("ru-RU",{day:"2-digit",month:"long"})}</div>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:28}}>{wIcon(histWeather.code)}</div>
+              <div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text}}>{histWeather.maxT>0?"+":""}{histWeather.maxT}°C</div>
+                <div style={{fontSize:11,color:C.muted}}>{wDesc(histWeather.code)} · {histWeather.wind} м/с ветер</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -3165,6 +3189,25 @@
             </div>
           </div>
         )}
+        {/* AI insight */}
+        {catchStats&&catchStats.total>=5&&(()=>{
+          const bestH=catchStats.tod.indexOf(Math.max(...catchStats.tod));
+          const timeLabel=bestH>=5&&bestH<10?"Утро (5–10ч)":bestH>=10&&bestH<18?"День (10–18ч)":bestH>=18&&bestH<22?"Вечер (18–22ч)":"Ночь (22–5ч)";
+          const bestMonthIdx=catchStats.monthly.reduce((b,m,i)=>m.count>catchStats.monthly[b].count?i:b,0);
+          const bm=catchStats.monthly[bestMonthIdx];
+          const avgW=catchStats.total>0?(catchStats.totalW/catchStats.total/1000).toFixed(2):0;
+          return(
+            <div style={{...glass(),padding:"14px 16px",marginBottom:14,background:"rgba(34,211,238,.06)",border:`1px solid rgba(34,211,238,.2)`}}>
+              <div style={{fontSize:11,color:C.cyan,fontWeight:700,letterSpacing:.5,marginBottom:10}}>🤖 ВАШ ИИ-АНАЛИЗ</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                <div style={{fontSize:13,color:C.text}}>🕐 Лучшее время: <span style={{color:C.accent,fontWeight:700}}>{timeLabel}</span> — {Math.max(...catchStats.tod)} уловов</div>
+                {bm.count>0&&<div style={{fontSize:13,color:C.text}}>📅 Лучший месяц: <span style={{color:C.accent,fontWeight:700}}>{bm.month} {bm.year}</span> — {bm.count} рыбалок</div>}
+                <div style={{fontSize:13,color:C.text}}>⚖️ Средний вес: <span style={{color:C.accent,fontWeight:700}}>{avgW} кг</span></div>
+                {catchStats.favGear&&<div style={{fontSize:13,color:C.text}}>🎣 Снасть #1: <span style={{color:C.accent,fontWeight:700}}>{catchStats.favGear}</span></div>}
+              </div>
+            </div>
+          );
+        })()}
         {/* Top-3 locations */}
         {catchStats?.top3locs?.length>0&&(
           <div style={{...glass(),padding:"12px 14px",marginBottom:10}}>
@@ -3794,39 +3837,139 @@
   }
 
   /* ── CatchCard ── */
-  function CatchCard({ record, onClick }) {
+  function CatchCard({ record, onClick, onDelete }) {
     const fish = FISH_TYPES.find(f=>f.id===record.fishType);
     const date = record.createdAt?.toDate?record.createdAt.toDate():new Date(parseInt(record.id)||Date.now());
     const dateStr = date.toLocaleDateString("ru-RU",{day:"2-digit",month:"short"});
     const wStr = record.weightGrams?`${(record.weightGrams/1000).toFixed(1)} кг`:"";
+    const [swipeX, setSwipeX] = useState(0);
+    const tRef = useRef({x:0, moving:false});
+    const onTS = e => { tRef.current={x:e.touches[0].clientX,moving:false}; };
+    const onTM = e => {
+      const dx=e.touches[0].clientX-tRef.current.x;
+      if(!tRef.current.moving&&Math.abs(dx)>8) tRef.current.moving=true;
+      if(tRef.current.moving&&dx<0){ e.preventDefault(); setSwipeX(Math.max(-88,dx)); }
+    };
+    const onTE = () => { setSwipeX(p=>p<-44?-88:0); tRef.current.moving=false; };
+    const handleClick = () => { if(Math.abs(swipeX)>10){ setSwipeX(0); return; } onClick(); };
     return (
-      <div onClick={onClick} style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",gap:12,alignItems:"center",cursor:"pointer",borderRadius:16}}>
-        {record.photoUrls?.[0]?(
-          <img src={record.photoUrls[0]} alt="" style={{width:58,height:58,objectFit:"cover",borderRadius:12,flexShrink:0}}/>
-        ):(
-          <div style={{width:58,height:58,borderRadius:12,background:C.accentDim,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:26}}>🐟</div>
-        )}
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontWeight:700,fontSize:14,color:C.text}}>
-            {fish?.name||record.fishName||"Рыба"} {wStr&&<span style={{color:C.accent,fontWeight:800}}>{wStr}</span>}
+      <div style={{position:"relative",overflow:"hidden",marginBottom:8,borderRadius:16}}>
+        {onDelete&&<div onClick={e=>{e.stopPropagation();if(window.confirm("Удалить улов?"))onDelete(record.id);}}
+          style={{position:"absolute",right:0,top:0,bottom:0,width:88,background:"#ef4444",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",borderRadius:"0 16px 16px 0"}}>
+          <span style={{fontSize:20}}>🗑</span><span style={{fontSize:10,color:"#fff",fontWeight:700,marginTop:2}}>Удалить</span>
+        </div>}
+        <div onClick={handleClick} onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
+          style={{...glass(),padding:"12px 14px",display:"flex",gap:12,alignItems:"center",cursor:"pointer",borderRadius:16,
+            transform:`translateX(${swipeX}px)`,transition:tRef.current.moving?"none":"transform .2s ease",position:"relative",zIndex:1}}>
+          {record.photoUrls?.[0]?(
+            <img src={record.photoUrls[0]} alt="" style={{width:58,height:58,objectFit:"cover",borderRadius:12,flexShrink:0}}/>
+          ):(
+            <div style={{width:58,height:58,borderRadius:12,background:C.accentDim,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:26}}>🐟</div>
+          )}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:14,color:C.text}}>
+              {fish?.name||record.fishName||"Рыба"} {wStr&&<span style={{color:C.accent,fontWeight:800}}>{wStr}</span>}
+            </div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{record.locationName||"Место не указано"}</div>
+            <div style={{display:"flex",gap:6,marginTop:2,flexWrap:"wrap"}}>
+              {record.gearType&&<span style={{fontSize:10,color:C.dimmer}}>{record.gearType}</span>}
+              {record.depthM&&<span style={{fontSize:10,color:"rgba(34,211,238,.6)"}}>📏{record.depthM}м</span>}
+              {record.distanceM&&<span style={{fontSize:10,color:"rgba(34,211,238,.6)"}}>↔{record.distanceM}м</span>}
+            </div>
           </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{record.locationName||"Место не указано"}</div>
-          <div style={{display:"flex",gap:6,marginTop:2,flexWrap:"wrap"}}>
-            {record.gearType&&<span style={{fontSize:10,color:C.dimmer}}>{record.gearType}</span>}
-            {record.depthM&&<span style={{fontSize:10,color:"rgba(34,211,238,.6)"}}>📏{record.depthM}м</span>}
-            {record.distanceM&&<span style={{fontSize:10,color:"rgba(34,211,238,.6)"}}>↔{record.distanceM}м</span>}
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{fontSize:11,color:C.dimmer}}>{dateStr}</div>
+            {record.isPublic&&<div style={{fontSize:9,color:C.accent,marginTop:2}}>📢 публ.</div>}
           </div>
         </div>
-        <div style={{textAlign:"right",flexShrink:0}}>
-          <div style={{fontSize:11,color:C.dimmer}}>{dateStr}</div>
-          {record.isPublic&&<div style={{fontSize:9,color:C.accent,marginTop:2}}>📢 публ.</div>}
+      </div>
+    );
+  }
+
+  /* ── EditCatchForm ── */
+  function EditCatchForm({ user, record, onClose, onSaved }) {
+    const [fishSearch, setFishSearch] = useState(FISH_TYPES.find(f=>f.id===record.fishType)?.name||"");
+    const [fishType, setFishType] = useState(record.fishType||"");
+    const [weightKg, setWeightKg] = useState(record.weightGrams?String(record.weightGrams/1000):"");
+    const [lengthCm, setLengthCm] = useState(record.lengthCm?String(record.lengthCm):"");
+    const [depthM, setDepthM] = useState(record.depthM?String(record.depthM):"");
+    const [distanceM, setDistanceM] = useState(record.distanceM?String(record.distanceM):"");
+    const [locationName, setLocationName] = useState(record.locationName||"");
+    const [dateStr, setDateStr] = useState(()=>{const d=record.createdAt?.toDate?record.createdAt.toDate():new Date();return d.toISOString().slice(0,16);});
+    const [gearType, setGearType] = useState(record.gearType||"");
+    const [bait, setBait] = useState(record.bait||"");
+    const [catchMethod, setCatchMethod] = useState(record.catchMethod||"");
+    const [notes, setNotes] = useState(record.notes||"");
+    const [saving, setSaving] = useState(false);
+    const fishFiltered = fishSearch ? FISH_TYPES.filter(f=>f.name.toLowerCase().includes(fishSearch.toLowerCase())) : FISH_TYPES;
+
+    const handleSave = async () => {
+      if (!fishType) return alert("Выберите вид рыбы");
+      setSaving(true);
+      const updates = {
+        fishType, fishName: FISH_TYPES.find(f=>f.id===fishType)?.name||"",
+        weightGrams: weightKg ? Math.round(parseFloat(weightKg)*1000) : null,
+        lengthCm: lengthCm ? parseFloat(lengthCm) : null,
+        depthM: depthM ? parseFloat(depthM) : null,
+        distanceM: distanceM ? parseFloat(distanceM) : null,
+        locationName: locationName||"Место не указано",
+        gearType: gearType||null, bait: bait||null,
+        catchMethod: catchMethod||null, notes: notes||null,
+        createdAt: firebase.firestore.Timestamp.fromDate(new Date(dateStr)),
+      };
+      try {
+        await db.collection("catches").doc(user.uid).collection("records").doc(record.id).update(updates);
+        onSaved?.({...record,...updates});
+        onClose();
+      } catch(e){ setSaving(false); alert("Ошибка: "+e.message); }
+    };
+
+    return (
+      <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(0,0,0,.78)",display:"flex",alignItems:"flex-end"}}>
+        <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1f35",borderRadius:"24px 24px 0 0",maxHeight:"90vh",overflowY:"auto",padding:"20px 16px 40px"}}>
+          <div style={{display:"flex",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:17,fontWeight:800,color:C.text,flex:1}}>✏️ Изменить улов</div>
+            <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ВИД РЫБЫ *</div>
+            <input value={fishSearch} onChange={e=>setFishSearch(e.target.value)} placeholder="Поиск..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:13,boxSizing:"border-box",marginBottom:8,outline:"none"}}/>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,maxHeight:100,overflowY:"auto"}}>
+              {fishFiltered.map(f=>(
+                <button key={f.id} onClick={()=>{setFishType(f.id);setFishSearch(f.name);}} style={{padding:"5px 11px",borderRadius:14,background:fishType===f.id?C.accentDim:C.surface,border:`1px solid ${fishType===f.id?C.accent:C.border}`,color:fishType===f.id?C.accent:C.muted,fontSize:12,cursor:"pointer"}}>{f.name}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10,marginBottom:12}}>
+            <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ВЕС (КГ)</div><input type="number" step="0.1" min="0" value={weightKg} onChange={e=>setWeightKg(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/></div>
+            <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ДЛИНА (СМ)</div><input type="number" step="1" min="0" value={lengthCm} onChange={e=>setLengthCm(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/></div>
+          </div>
+          <div style={{marginBottom:12}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>МЕСТО</div><input value={locationName} onChange={e=>setLocationName(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:13,boxSizing:"border-box",outline:"none"}}/></div>
+          <div style={{marginBottom:12}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ДАТА И ВРЕМЯ</div><input type="datetime-local" value={dateStr} onChange={e=>setDateStr(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:13,boxSizing:"border-box",outline:"none"}}/></div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>СНАСТЬ</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{GEAR_TYPES.map(g=><button key={g} onClick={()=>setGearType(gearType===g?"":g)} style={{padding:"5px 11px",borderRadius:14,background:gearType===g?C.accentDim:C.surface,border:`1px solid ${gearType===g?C.accent:C.border}`,color:gearType===g?C.accent:C.muted,fontSize:12,cursor:"pointer"}}>{g}</button>)}</div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ТИП ЛОВЛИ</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{CATCH_METHODS.map(m=><button key={m} onClick={()=>setCatchMethod(catchMethod===m?"":m)} style={{padding:"5px 11px",borderRadius:14,background:catchMethod===m?C.accentDim:C.surface,border:`1px solid ${catchMethod===m?C.accent:C.border}`,color:catchMethod===m?C.accent:C.muted,fontSize:12,cursor:"pointer"}}>{m}</button>)}</div>
+          </div>
+          <div style={{marginBottom:12}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ПРИМАНКА / НАЖИВКА</div><input value={bait} onChange={e=>setBait(e.target.value)} placeholder="Напр.: Джиг, червь..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:13,boxSizing:"border-box",outline:"none"}}/></div>
+          <div style={{display:"flex",gap:10,marginBottom:12}}>
+            <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ГЛУБИНА (М)</div><input type="number" step="0.5" min="0" value={depthM} onChange={e=>setDepthM(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/></div>
+            <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ДИСТАНЦИЯ (М)</div><input type="number" step="1" min="0" value={distanceM} onChange={e=>setDistanceM(e.target.value)} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/></div>
+          </div>
+          <div style={{marginBottom:20}}><div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ЗАМЕТКИ</div><textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={2} style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:13,boxSizing:"border-box",resize:"none",outline:"none"}}/></div>
+          <button onClick={handleSave} disabled={saving||!fishType} style={{width:"100%",padding:"15px",borderRadius:16,border:"none",background:fishType?`linear-gradient(135deg,#1a8a50,${C.accent})`:"#1e3a2a",color:fishType?"#07111e":"#4a6e5a",fontSize:15,fontWeight:800,cursor:fishType?"pointer":"default"}}>{saving?"Сохраняем...":"✅ Сохранить изменения"}</button>
         </div>
       </div>
     );
   }
 
   /* ── CatchDetailView ── */
-  function CatchDetailView({ record, user, onBack }) {
+  function CatchDetailView({ record: initRecord, user, onBack }) {
+    const [record, setRecord] = useState(initRecord);
+    const [showEdit, setShowEdit] = useState(false);
     const fish = FISH_TYPES.find(f=>f.id===record.fishType);
     const date = record.createdAt?.toDate?record.createdAt.toDate():new Date(parseInt(record.id)||Date.now());
     const [deleting, setDeleting] = useState(false);
@@ -3865,6 +4008,7 @@
 
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%",overflowY:"auto"}}>
+        {showEdit&&<EditCatchForm user={user} record={record} onClose={()=>setShowEdit(false)} onSaved={updated=>{setRecord(updated);setShowEdit(false);}}/>}
         <div style={{padding:"12px 14px",display:"flex",alignItems:"center",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:"rgba(7,17,30,.9)",position:"sticky",top:0,zIndex:2}}>
           <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 0"}}>← Назад</button>
           <div style={{flex:1}}/>
@@ -3917,6 +4061,9 @@
             <div style={{display:"flex",gap:8,marginBottom:8}}>
               <button onClick={()=>doShareCard(record)} style={{flex:1,padding:"12px",background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",borderRadius:14,color:C.cyan,fontSize:13,fontWeight:700,cursor:"pointer"}}>
                 📤 Поделиться
+              </button>
+              <button onClick={()=>setShowEdit(true)} style={{flex:1,padding:"12px",background:"rgba(46,204,113,.1)",border:"1px solid rgba(46,204,113,.3)",borderRadius:14,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                ✏️ Изменить
               </button>
             </div>
             <div style={{display:"flex",gap:8}}>
@@ -3990,6 +4137,8 @@
         logEvent("catch_saved",{source:"manual",fish_type:fishType,weight_g:rec.weightGrams||0,has_photo:false});
         onSaved?.();
         if(!navigator.onLine){
+          const p=parseInt(localStorage.getItem("eger_offline_pending")||"0")+1;
+          localStorage.setItem("eger_offline_pending",String(p));
           alert("✅ Улов сохранён локально.\nОн синхронизируется когда появится интернет.");
         }
         onClose();
@@ -4284,7 +4433,7 @@
               )}
             </div>
           )}
-          {!loading&&filtered.map(rec=><CatchCard key={rec.id} record={rec} onClick={()=>setSelected(rec)}/>)}
+          {!loading&&filtered.map(rec=><CatchCard key={rec.id} record={rec} onClick={()=>setSelected(rec)} onDelete={async id=>{await db.collection("catches").doc(user.uid).collection("records").doc(id).delete();}}/>)}
           {loadingMore&&<div style={{textAlign:"center",padding:"12px",color:C.muted,fontSize:13}}>Загрузка...</div>}
           {!loading&&!noMore&&records.length>=20&&!loadingMore&&(
             <button onClick={loadMore} style={{width:"100%",padding:"12px",borderRadius:14,border:`1px solid ${C.border}`,background:C.surface,color:C.muted,fontSize:13,cursor:"pointer",marginBottom:8}}>Загрузить ещё</button>
@@ -4497,11 +4646,20 @@
   }
 
   /* ── LeaderboardScreen ── */
-  function LeaderboardScreen({ onBack }) {
+  function LeaderboardScreen({ onBack, user }) {
     const [period, setPeriod] = useState("week");
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [updatedAt, setUpdatedAt] = useState(null);
+    const [userRow, setUserRow] = useState(null);
+
+    useEffect(()=>{
+      if(!user||rows.length===0) return setUserRow(null);
+      if(rows.find(r=>r.userId===user.uid)) return setUserRow(null);
+      if(period==="all") return setUserRow(null);
+      db.collection("leaderboard").doc(period).collection("rows").doc(user.uid).get()
+        .then(d=>setUserRow(d.exists?d.data():null)).catch(()=>setUserRow(null));
+    },[rows,user,period]);
 
     useEffect(()=>{
       logEvent("leaderboard_viewed",{period});
@@ -4572,13 +4730,13 @@
           {loading&&[1,2,3,4,5].map(i=><div key={i} style={{height:62,borderRadius:14,background:C.surface,marginBottom:8,animation:"pulseGlow 1.5s ease infinite"}}/>)}
           {!loading&&rows.length===0&&<div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>Нет данных за этот период</div>}
           {!loading&&rows.map((r,i)=>(
-            <div key={r.userId} style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,borderRadius:16,border:`1px solid ${i<3?`rgba(46,204,113,${0.4-i*0.1})`:C.border}`}}>
+            <div key={r.userId} style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,borderRadius:16,border:`1px solid ${user&&r.userId===user.uid?C.accent:i<3?`rgba(46,204,113,${0.4-i*0.1})`:C.border}`,background:user&&r.userId===user.uid?"rgba(46,204,113,.08)":"transparent"}}>
               <div style={{fontSize:i<3?26:13,fontWeight:800,color:i<3?C.accent:C.dimmer,width:30,textAlign:"center",flexShrink:0}}>{i<3?medals[i]:i+1}</div>
               <div style={{width:36,height:36,borderRadius:18,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#07111e",flexShrink:0}}>
                 {(r.author||"Р")[0].toUpperCase()}
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:700,fontSize:14,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.author}</div>
+                <div style={{fontWeight:700,fontSize:14,color:user&&r.userId===user.uid?C.accent:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.author}{user&&r.userId===user.uid?" (Вы)":""}</div>
                 <div style={{fontSize:11,color:C.muted}}>{r.catches} улов{r.catches===1?"":"ов"} · лучший {r.best.toFixed(1)} кг</div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
@@ -4587,6 +4745,22 @@
               </div>
             </div>
           ))}
+          {userRow&&(
+            <div style={{position:"sticky",bottom:0,paddingBottom:16,background:"rgba(7,17,30,.95)"}}>
+              <div style={{...glass(),padding:"12px 14px",display:"flex",alignItems:"center",gap:12,borderRadius:16,border:`2px solid ${C.accent}`,background:"rgba(46,204,113,.1)"}}>
+                <div style={{fontSize:13,fontWeight:800,color:C.accent,width:30,textAlign:"center",flexShrink:0}}>#{userRow.rank}</div>
+                <div style={{width:36,height:36,borderRadius:18,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:800,color:"#07111e",flexShrink:0}}>{(userRow.author||"Р")[0].toUpperCase()}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:14,color:C.accent}}>Вы · {userRow.author}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{userRow.catches} улов{userRow.catches===1?"":"ов"} · лучший {(userRow.best||0).toFixed(1)} кг</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:17,fontWeight:800,color:C.accent}}>{(userRow.totalKg||0).toFixed(1)}</div>
+                  <div style={{fontSize:10,color:C.dimmer}}>кг</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -4717,6 +4891,7 @@
     const [fabPos, setFabPos] = useState(()=>{ const s=localStorage.getItem("eger_fab_pos"); return s?JSON.parse(s):null; });
     const fabDrag = useRef({active:false,moved:false,startX:0,startY:0,startLeft:0,startTop:0});
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
+    const [offlinePending, setOfflinePending] = useState(()=>parseInt(localStorage.getItem("eger_offline_pending")||"0"));
 
     const onFabTouchStart = useCallback((e)=>{
       const t=e.touches[0];
@@ -4747,7 +4922,8 @@
     useEffect(()=>{ const u=auth.onAuthStateChanged(u=>{setUser(u);setAuthLoading(false);}); return u; },[]);
 
     useEffect(()=>{
-      const on=()=>setIsOffline(false), off=()=>setIsOffline(true);
+      const on=()=>{ setIsOffline(false); localStorage.setItem("eger_offline_pending","0"); setOfflinePending(0); };
+      const off=()=>setIsOffline(true);
       window.addEventListener("online",on); window.addEventListener("offline",off);
       return()=>{ window.removeEventListener("online",on); window.removeEventListener("offline",off); };
     },[]);
@@ -4872,7 +5048,7 @@
         {showAuth && <AuthModal onClose={()=>setShowAuth(false)} onSuccess={()=>setShowAuth(false)}/>}
         {showCatch && user && <CatchModal user={user} userLat={userLat} userLon={userLon} weather={weather} onClose={()=>setShowCatch(false)}/>}
         {showOnboarding && <OnboardingModal onDone={()=>{ localStorage.setItem("eger_onboarded","1"); setShowOnboarding(false); }}/>}
-        {isOffline&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9998,background:"rgba(239,68,68,.95)",color:"#fff",fontSize:12,fontWeight:700,textAlign:"center",padding:"8px 0",letterSpacing:.5,backdropFilter:"blur(8px)"}}>📵 Нет интернета — работаем в офлайн-режиме</div>}
+        {isOffline&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9998,background:"rgba(239,68,68,.95)",color:"#fff",fontSize:12,fontWeight:700,textAlign:"center",padding:"8px 0",letterSpacing:.5,backdropFilter:"blur(8px)"}}>📵 Нет интернета{offlinePending>0?` — ${offlinePending} записей ожидают синхронизации`:" — офлайн-режим"}</div>}
         {user && !showCatch && (
           <button
             onTouchStart={onFabTouchStart}
@@ -4941,7 +5117,7 @@
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
           {tab==="weather"   && <WeatherScreen weather={weather} weatherLoading={weatherLoading} onRefresh={loadWeather}/>}
-          {tab==="leaderboard"&&<LeaderboardScreen onBack={()=>goTab("profile")}/>}
+          {tab==="leaderboard"&&<LeaderboardScreen onBack={()=>goTab("profile")} user={user}/>}
           {tab==="tournament" &&<TournamentScreen onBack={()=>goTab("profile")} user={user}/>}
           {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)} onNav={goTab}/>}
         </main>

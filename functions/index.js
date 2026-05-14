@@ -243,3 +243,96 @@ exports.notifyNearbyCatch = functions
     functions.logger.info(`notifyNearbyCatch sent: ${resp.successCount}/${tokens.length}`);
     return null;
   });
+
+
+// ────────────────────────────────────────────────────────────
+// 6. Пятничный прогноз клёва на выходные (пятница 17:00 МСК = 14:00 UTC)
+// ────────────────────────────────────────────────────────────
+exports.pushWeekendForecast = functions
+  .region("europe-west3")
+  .pubsub.schedule("0 14 * * 5")
+  .timeZone("UTC")
+  .onRun(async () => {
+    const tokensSnap = await db.collection("fcm_tokens").get();
+    const tokens = tokensSnap.docs.map(d => d.id).filter(Boolean);
+    if (tokens.length === 0) return null;
+
+    // Простая оценка клёва по сезону
+    const month = new Date().getMonth() + 1;
+    const goodMonths = [4, 5, 6, 9, 10];
+    const biteText = goodMonths.includes(month)
+      ? "Отличный клёв ожидается — самое время выехать!"
+      : "Клёв средний, но рыбалка всё равно зовёт 🎣";
+
+    const msg = {
+      notification: { title: "🎣 Прогноз на выходные", body: biteText },
+      data: { url: "https://turbenbaher-del.github.io/eger-ai/", type: "weekend_forecast" },
+      tokens: tokens.slice(0, 500),
+    };
+    const r = await admin.messaging().sendEachForMulticast(msg);
+    functions.logger.info(`pushWeekendForecast: ${r.successCount}/${tokens.length}`);
+    return null;
+  });
+
+
+// ────────────────────────────────────────────────────────────
+// 7. Напоминание рыбакам, не логировавшим улов 5+ дней (вторник 9:00 МСК = 6:00 UTC)
+// ────────────────────────────────────────────────────────────
+exports.pushFishingReminder = functions
+  .region("europe-west3")
+  .pubsub.schedule("0 6 * * 2")
+  .timeZone("UTC")
+  .onRun(async () => {
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+    const usersSnap = await db.collection("users").get();
+    const inactiveUids = [];
+
+    for (const doc of usersSnap.docs) {
+      const uid = doc.id;
+      const recentSnap = await db.collection("catches").doc(uid).collection("records")
+        .where("createdAt", ">=", admin.firestore.Timestamp.fromDate(fiveDaysAgo))
+        .limit(1).get();
+      if (recentSnap.empty) inactiveUids.push(uid);
+    }
+
+    if (inactiveUids.length === 0) return null;
+    functions.logger.info(`pushFishingReminder: ${inactiveUids.length} inactive users`);
+
+    // Берём все FCM токены (упрощённо — без привязки к uid)
+    const tokensSnap = await db.collection("fcm_tokens").get();
+    const tokens = tokensSnap.docs.map(d => d.id).filter(Boolean);
+    if (tokens.length === 0) return null;
+
+    const msg = {
+      notification: {
+        title: "🎣 Давно не рыбачили?",
+        body: "Самое время записать новый улов или проверить прогноз клёва!"
+      },
+      data: { url: "https://turbenbaher-del.github.io/eger-ai/", type: "fishing_reminder" },
+      tokens: tokens.slice(0, 500),
+    };
+    const r = await admin.messaging().sendEachForMulticast(msg);
+    functions.logger.info(`pushFishingReminder sent: ${r.successCount}/${tokens.length}`);
+    return null;
+  });
+
+
+// ────────────────────────────────────────────────────────────
+// 8. Награждение значком explorer при одобрении предложенной точки
+// ────────────────────────────────────────────────────────────
+exports.onSpotApproved = functions
+  .region("europe-west3")
+  .firestore.document("suggested_spots/{spotId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (before.status === "approved" || after.status !== "approved") return null;
+    const userId = after.uid || after.userId;
+    if (!userId) return null;
+    const badgeRef = db.collection("users").doc(userId).collection("badges").doc("explorer");
+    const badge = await badgeRef.get();
+    if (badge.exists) return null;
+    await badgeRef.set({ awardedAt: admin.firestore.FieldValue.serverTimestamp() });
+    functions.logger.info(`Badge explorer awarded to ${userId} for spot ${context.params.spotId}`);
+    return null;
+  });
