@@ -3639,6 +3639,19 @@
     const [saving, setSaving] = useState(false);
     const fishFiltered = fishSearch ? FISH_TYPES.filter(f=>f.name.toLowerCase().includes(fishSearch.toLowerCase())) : FISH_TYPES;
 
+    const fillFromLast = () => {
+      db.collection("catches").doc(user.uid).collection("records")
+        .orderBy("createdAt","desc").limit(1).get()
+        .then(snap=>{
+          if(snap.empty) return;
+          const r=snap.docs[0].data();
+          if(r.locationName) setLocationName(r.locationName);
+          if(r.gearType) setGearType(r.gearType);
+          if(r.bait) setBait(r.bait);
+          if(r.catchMethod) setCatchMethod(r.catchMethod);
+        });
+    };
+
     const handleSave = async () => {
       if (!fishType) return alert("Выберите вид рыбы");
       setSaving(true);
@@ -3667,7 +3680,8 @@
       <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"flex-end"}}>
         <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1f35",borderRadius:"24px 24px 0 0",maxHeight:"90vh",overflowY:"auto",padding:"20px 16px 40px"}}>
           <div style={{display:"flex",alignItems:"center",marginBottom:16}}>
-            <div style={{fontSize:17,fontWeight:800,color:C.text,flex:1}}>📝 Добавить улов вручную</div>
+            <div style={{fontSize:17,fontWeight:800,color:C.text,flex:1}}>📝 Добавить вручную</div>
+            <button onClick={fillFromLast} title="Копировать с последней рыбалки" style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"4px 8px",cursor:"pointer",color:C.muted,fontSize:11,fontWeight:700,marginRight:8}}>↩ Повторить</button>
             <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
           </div>
           {/* Fish type */}
@@ -3809,6 +3823,8 @@
     const fishInRecs = useMemo(()=>[...new Set(records.map(r=>r.fishType).filter(Boolean))],[records]);
     const gearsInRecs = useMemo(()=>[...new Set(records.map(r=>r.gearType).filter(Boolean))],[records]);
     const totalW = useMemo(()=>records.reduce((s,r)=>s+(r.weightGrams||0),0),[records]);
+    const fishCounts = useMemo(()=>{const m={};records.forEach(r=>{if(r.fishType) m[r.fishType]=(m[r.fishType]||0)+1;});return m;},[records]);
+    const gearCounts = useMemo(()=>{const m={};records.forEach(r=>{if(r.gearType) m[r.gearType]=(m[r.gearType]||0)+1;});return m;},[records]);
 
     const handleScroll = useCallback((e)=>{
       const el=e.currentTarget;
@@ -3863,6 +3879,7 @@
           <div style={{display:"flex",alignItems:"center",gap:8,background:C.surfaceHi,borderRadius:12,padding:"8px 12px",border:`1px solid ${C.border}`,marginBottom:8}}>
             <span style={{fontSize:14,color:C.muted}}>🔍</span>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск по рыбе, месту, заметкам..." style={{flex:1,background:"none",border:"none",outline:"none",color:C.text,fontSize:13}}/>
+            {(search||filterFish||filterGear||filterPeriod!=="all")&&<span style={{fontSize:11,color:C.accent,fontWeight:700,flexShrink:0}}>{filtered.length}</span>}
             {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18,lineHeight:1}}>×</button>}
           </div>
           {/* Period filter */}
@@ -3875,12 +3892,12 @@
           {fishInRecs.length>0&&(
             <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:8}}>
               <button onClick={()=>setFilterFish("")} style={{flexShrink:0,padding:"4px 10px",background:!filterFish?C.accentDim:C.surface,border:`1px solid ${!filterFish?C.accent:C.border}`,borderRadius:14,color:!filterFish?C.accent:C.muted,fontSize:11,cursor:"pointer"}}>Все</button>
-              {fishInRecs.map(ft=>{const f=FISH_TYPES.find(f=>f.id===ft);return(
-                <button key={ft} onClick={()=>setFilterFish(filterFish===ft?"":ft)} style={{flexShrink:0,padding:"4px 10px",background:filterFish===ft?C.accentDim:C.surface,border:`1px solid ${filterFish===ft?C.accent:C.border}`,borderRadius:14,color:filterFish===ft?C.accent:C.muted,fontSize:11,cursor:"pointer"}}>{f?.name||ft}</button>
+              {fishInRecs.map(ft=>{const f=FISH_TYPES.find(f=>f.id===ft);const cnt=fishCounts[ft]||0;return(
+                <button key={ft} onClick={()=>setFilterFish(filterFish===ft?"":ft)} style={{flexShrink:0,padding:"4px 10px",background:filterFish===ft?C.accentDim:C.surface,border:`1px solid ${filterFish===ft?C.accent:C.border}`,borderRadius:14,color:filterFish===ft?C.accent:C.muted,fontSize:11,cursor:"pointer"}}>{f?.name||ft} <span style={{opacity:.6}}>({cnt})</span></button>
               );})}
-              {gearsInRecs.map(g=>(
-                <button key={g} onClick={()=>setFilterGear(filterGear===g?"":g)} style={{flexShrink:0,padding:"4px 10px",background:filterGear===g?"rgba(34,211,238,.15)":C.surface,border:`1px solid ${filterGear===g?C.cyan:C.border}`,borderRadius:14,color:filterGear===g?C.cyan:C.muted,fontSize:11,cursor:"pointer"}}>🎣 {g}</button>
-              ))}
+              {gearsInRecs.map(g=>{const cnt=gearCounts[g]||0;return(
+                <button key={g} onClick={()=>setFilterGear(filterGear===g?"":g)} style={{flexShrink:0,padding:"4px 10px",background:filterGear===g?"rgba(34,211,238,.15)":C.surface,border:`1px solid ${filterGear===g?C.cyan:C.border}`,borderRadius:14,color:filterGear===g?C.cyan:C.muted,fontSize:11,cursor:"pointer"}}>🎣 {g} <span style={{opacity:.6}}>({cnt})</span></button>
+              );})};
             </div>
           )}
         </div>
