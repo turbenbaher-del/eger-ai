@@ -38,6 +38,20 @@
   </style>
 </head>
 <body>
+<div id="splash" style="position:fixed;inset:0;background:#07111e;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;transition:opacity .5s ease;pointer-events:none">
+  <div style="width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#2ecc71,#22d3ee);display:flex;align-items:center;justify-content:center;box-shadow:0 0 48px rgba(46,204,113,.55);margin-bottom:22px;font-size:36px">🎣</div>
+  <div style="font-size:38px;letter-spacing:3px;font-weight:700;background:linear-gradient(90deg,#fff 20%,#2ecc71 80%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;font-family:sans-serif">ЕГЕРЬ ИИ</div>
+  <div style="font-size:12px;color:rgba(232,244,240,0.4);letter-spacing:1.5px;margin-bottom:36px">Умный помощник рыбака</div>
+  <div style="width:36px;height:36px;border-radius:50%;border:3px solid #2ecc71;border-top-color:transparent;animation:spin 1s linear infinite"></div>
+</div>
+<script>
+  window.addEventListener("load",function(){
+    setTimeout(function(){
+      var s=document.getElementById("splash");
+      if(s){s.style.opacity="0";setTimeout(function(){s&&s.remove();},500);}
+    },600);
+  });
+</script>
 <div id="root"></div>
 <script type="text/babel" data-presets="react">
   const { useState, useRef, useEffect, useCallback, useMemo } = React;
@@ -985,7 +999,7 @@
       const isMaps=part.includes("maps.google")||part.includes("google.com/maps");
       const isWB=part.includes("wildberries"), isOzon=part.includes("ozon.ru"), isYM=part.includes("market.yandex");
       const label=isMaps?"📍 Открыть на карте →":isWB?"🛒 Wildberries →":isOzon?"🛒 Ozon →":isYM?"🛒 Яндекс Маркет →":part;
-      return <span key={i} onClick={()=>window.open(part,"_blank","noopener,noreferrer")} style={{display:"inline-block",color:isUser?"#07111e":C.accent,textDecoration:"underline",cursor:"pointer",wordBreak:"break-all",fontWeight:isMaps||isWB||isOzon||isYM?700:400}}>{label}</span>;
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{display:"inline-block",color:isUser?"#07111e":C.accent,textDecoration:"underline",cursor:"pointer",wordBreak:"break-all",fontWeight:isMaps||isWB||isOzon||isYM?700:400}}>{label}</a>;
     });
 
   /* ── Bubble (AI chat) ── */
@@ -1607,6 +1621,14 @@
               📍 По расстоянию от вас
             </div>
           )}
+          {filtered.length===0&&filter&&(
+            <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>
+              <div style={{fontSize:40,marginBottom:12}}>🔍</div>
+              <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:8}}>Ничего не найдено</div>
+              <div style={{fontSize:12,marginBottom:14}}>Попробуй другой запрос</div>
+              <button onClick={()=>setFilter("")} style={{padding:"8px 20px",borderRadius:12,border:`1px solid ${C.accent}`,background:C.accentDim,color:C.accent,fontSize:12,fontWeight:700,cursor:"pointer"}}>Сбросить</button>
+            </div>
+          )}
           {filtered.map((s,i)=>{
             const realIdx = SPOT_LIST.indexOf(s);
             const dist = userLat&&userLon ? Math.round(haversine(userLat,userLon,s.lat,s.lon)) : null;
@@ -1996,19 +2018,23 @@
             </div>
           )}
           {allMsgs.length===0&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><MessageCircle size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Будь первым!</div></div>}
-          {allMsgs.map(msg=>{
+          {allMsgs.map((msg,i)=>{
             const isMe=user&&msg.uid===user.uid, col=aColor(msg.uid), ts=msg.timestamp?fmtDate(msg.timestamp):"";
             const isVideo=msg.type==="video"&&msg.videoUrl;
             const isVoice=msg.type==="voice"&&msg.voiceUrl;
             const isImage=msg.type==="image"&&msg.imageUrl;
             const isSel=selectedMsg===msg.id;
+            // показываем время только в конце кластера (последнее сообщение отправителя или при выборе)
+            const showTs = isSel || i===allMsgs.length-1 || allMsgs[i+1]?.uid!==msg.uid;
+            // прячем аватар/имя если предыдущее — тот же отправитель
+            const sameAsPrev = i>0 && allMsgs[i-1]?.uid===msg.uid;
             const rxEntries=Object.entries(msg.reactions||{}).filter(([,u])=>u&&u.length>0);
             return (
-              <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",marginBottom:10,animation:"fadeUp .25s ease"}}>
+              <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",marginBottom:sameAsPrev?3:10,animation:"fadeUp .25s ease"}}>
                 <div style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",width:"100%"}}>
-                  {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{(msg.displayName||"Р")[0].toUpperCase()}</div>}
+                  {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:sameAsPrev?"transparent":`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{sameAsPrev?"":(msg.displayName||"Р")[0].toUpperCase()}</div>}
                   <div style={{maxWidth:isVideo?"160px":"75%"}} onClick={()=>setSelectedMsg(isSel?null:msg.id)}>
-                    {!isMe&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:2,paddingLeft:4}}>
+                    {!isMe&&!sameAsPrev&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:2,paddingLeft:4}}>
                       {msg.displayName}
                       {msg.username&&<span style={{color:C.dimmer,fontWeight:400,marginLeft:4}}>@{msg.username}</span>}
                     </div>}
@@ -2020,7 +2046,7 @@
                     {isVideo&&<div>
                       <VideoNote url={msg.videoUrl} isMe={isMe} col={col}/>
                       <div style={{display:"flex",alignItems:"center",justifyContent:isMe?"flex-end":"flex-start",gap:8,marginTop:4}}>
-                        <div style={{fontSize:9,opacity:.4}}>{ts}</div>
+                        {showTs&&<div style={{fontSize:9,opacity:.4}}>{ts}</div>}
                         <button onClick={e=>{e.stopPropagation();setSelectedMsg(isSel?null:msg.id);}}
                           style={{background:"rgba(255,255,255,.07)",border:`1px solid ${C.border}`,borderRadius:12,padding:"2px 8px",fontSize:12,cursor:"pointer",color:C.muted}}>
                           😊
@@ -2030,7 +2056,7 @@
                     {isVoice&&<div>
                       <VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isMe} col={col}/>
                       <div style={{display:"flex",alignItems:"center",justifyContent:isMe?"flex-end":"flex-start",gap:8,marginTop:4}}>
-                        <div style={{fontSize:9,opacity:.4}}>{ts}</div>
+                        {showTs&&<div style={{fontSize:9,opacity:.4}}>{ts}</div>}
                         <button onClick={e=>{e.stopPropagation();setSelectedMsg(isSel?null:msg.id);}}
                           style={{background:"rgba(255,255,255,.07)",border:`1px solid ${C.border}`,borderRadius:12,padding:"2px 8px",fontSize:12,cursor:"pointer",color:C.muted}}>
                           😊
@@ -2045,14 +2071,14 @@
                           🔍
                         </a>
                       </div>
-                      <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div>
+                      {showTs&&<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div>}
                     </div>}
                     {!isVideo&&!isVoice&&!isImage&&<div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
                       {msg.text}
-                      <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right",display:"flex",justifyContent:"flex-end",gap:6}}>
+                      {showTs&&<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right",display:"flex",justifyContent:"flex-end",gap:6}}>
                         {msg.edited&&<span>изменено</span>}
                         <span>{ts}</span>
-                      </div>
+                      </div>}
                     </div>}
                   </div>
                 </div>
@@ -2139,6 +2165,10 @@
           ))}
         </div>}
 
+        {!user&&<div style={{padding:"11px 14px",background:"rgba(46,204,113,.07)",borderTop:`1px solid rgba(46,204,113,.2)`,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:12,color:C.muted,flex:1}}>🔒 Войдите чтобы писать в чат и сохранять уловы</span>
+          <button onClick={onLogin} style={{padding:"8px 16px",borderRadius:12,border:"none",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:12,fontWeight:800,cursor:"pointer",flexShrink:0}}>Войти</button>
+        </div>}
         <div style={{padding:"8px 12px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",display:"flex",gap:8,alignItems:"flex-end"}}>
           <input ref={photoGallRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
           <input ref={photoCamRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
