@@ -1544,6 +1544,10 @@
     const [tab,setTab]=useState("news");
     const [newsItems,setNewsItems]=useState(NEWS_ITEMS);
     const [newsLoading,setNewsLoading]=useState(false);
+    const [newIds,setNewIds]=useState(new Set());
+    const [lastUpdated,setLastUpdated]=useState(null);
+    const [newCount,setNewCount]=useState(0);
+    const seenIdsRef=useRef(new Set(NEWS_ITEMS.map(n=>n.id)));
     const [reports,setReports]=useState([]);
     const [reportsErr,setReportsErr]=useState(false);
     const [showForm,setShowForm]=useState(false);
@@ -1554,16 +1558,28 @@
     const [posting,setPosting]=useState(false);
     const [uploadPct,setUploadPct]=useState(null);
 
-    // Авто-обновление новостей из RSS
+    // Реальное время: опрос RSS каждые 3 минуты
     useEffect(()=>{
-      const load=async()=>{
-        setNewsLoading(true);
-        try{ const items=await fetchRssNews(); if(items.length>0) setNewsItems(items); }
-        catch(e){ console.log("news err",e); }
-        setNewsLoading(false);
+      const load=async(silent=false)=>{
+        if(!silent) setNewsLoading(true);
+        try{
+          const items=await fetchRssNews();
+          if(items.length>0){
+            // Найти новые статьи (которых ещё не было)
+            const fresh=items.filter(it=>!seenIdsRef.current.has(it.id));
+            if(fresh.length>0){
+              fresh.forEach(it=>seenIdsRef.current.add(it.id));
+              setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
+              setNewCount(n=>n+fresh.length);
+            }
+            setNewsItems(items);
+            setLastUpdated(new Date());
+          }
+        }catch(e){ console.log("news err",e); }
+        if(!silent) setNewsLoading(false);
       };
-      load();
-      const t=setInterval(load,30*60*1000); // каждые 30 минут
+      load(false);                           // первый запуск — показываем спиннер
+      const t=setInterval(()=>load(true),3*60*1000); // тихий опрос каждые 3 мин
       return()=>clearInterval(t);
     },[]);
 
@@ -1616,28 +1632,41 @@
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"12px 14px"}}>
           {tab==="news"&&<div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-              <span style={{fontSize:11,color:C.dimmer}}>{newsItems.length} новостей · обновляется каждые 30 мин</span>
-              <button onClick={async()=>{setNewsLoading(true);try{const it=await fetchRssNews();if(it.length>0)setNewsItems(it);}catch(e){}setNewsLoading(false);}}
+            {/* Live-шапка */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:"#ef4444",animation:"pulseGlow .8s ease infinite"}}/>
+                <span style={{fontSize:11,color:C.text,fontWeight:700}}>В эфире</span>
+                {lastUpdated&&<span style={{fontSize:10,color:C.dimmer}}>· {lastUpdated.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</span>}
+                {newCount>0&&<span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#ef4444",borderRadius:10,padding:"1px 7px",cursor:"pointer"}} onClick={()=>setNewCount(0)}>+{newCount} новых</span>}
+              </div>
+              <button onClick={async()=>{setNewsLoading(true);try{const it=await fetchRssNews();if(it.length>0){const fr=it.filter(x=>!seenIdsRef.current.has(x.id));fr.forEach(x=>seenIdsRef.current.add(x.id));if(fr.length>0){setNewIds(p=>new Set([...p,...fr.map(x=>x.id)]));setNewCount(n=>n+fr.length);}setNewsItems(it);setLastUpdated(new Date());}}catch(e){}setNewsLoading(false);}}
                 style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,padding:"4px 10px",color:newsLoading?C.accent:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
                 <RefreshCw size={11} color={newsLoading?C.accent:C.muted} style={newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
                 {newsLoading?"Загрузка...":"Обновить"}
               </button>
             </div>
-            {newsItems.map(n=>(
-              <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                  <span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span>
-                  <span style={{fontSize:10,color:C.dimmer}}>{n.date}</span>
+            {newsItems.map(n=>{
+              const isNew=newIds.has(n.id);
+              return(
+                <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease",border:isNew?`1px solid rgba(239,68,68,.4)`:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
+                  {isNew&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#ef4444,#f59e0b)"}}/>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span>
+                      {isNew&&<span style={{fontSize:9,fontWeight:800,color:"#ef4444",background:"rgba(239,68,68,.15)",borderRadius:6,padding:"2px 6px"}}>НОВОЕ</span>}
+                    </div>
+                    <span style={{fontSize:10,color:C.dimmer}}>{n.date}</span>
+                  </div>
+                  <div style={{fontSize:14,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:6}}>{n.title}</div>
+                  <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:8}}>{n.text}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:10,color:C.dimmer}}>Источник: {n.source}</span>
+                    {n.link&&<a href={n.link} target="_blank" rel="noreferrer" style={{fontSize:10,color:C.accent,fontWeight:700,textDecoration:"none"}}>Читать →</a>}
+                  </div>
                 </div>
-                <div style={{fontSize:14,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:6}}>{n.title}</div>
-                <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:8}}>{n.text}</div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:10,color:C.dimmer}}>Источник: {n.source}</span>
-                  {n.link&&<a href={n.link} target="_blank" rel="noreferrer" style={{fontSize:10,color:C.accent,fontWeight:700,textDecoration:"none"}}>Читать →</a>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>}
           {tab==="reports"&&<div>
             <button onClick={openCreate} style={{width:"100%",padding:"13px",borderRadius:14,border:`1px dashed ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
