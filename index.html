@@ -480,6 +480,14 @@
   };
   const PRESSURE_DATA = [757,758,756,759,761,760,762,761,763,762,764,763];
 
+  const REACTIONS_LIST = ["👍","❤️","😂","😮","🎣","🔥"];
+
+  function genUsername(displayName) {
+    const base = (displayName || "рыбак")
+      .toLowerCase().replace(/\s+/g,"_").replace(/[^a-zа-яё0-9_]/g,"").slice(0,18) || "рыбак";
+    return base;
+  }
+
   /* ── Sparkline ── */
   function Sparkline({ data, width=280, height=60 }) {
     const min=Math.min(...data)-2, max=Math.max(...data)+2;
@@ -988,6 +996,9 @@
     const [input, setInput] = useState("");
     const [onlineCount] = useState(Math.floor(Math.random()*8)+3);
     const [attachOpen, setAttachOpen] = useState(false);
+    const [username, setUsername] = useState("");
+    const [replyTo, setReplyTo] = useState(null);
+    const [selectedMsg, setSelectedMsg] = useState(null);
     // video circle state
     const [showVideoRec, setShowVideoRec] = useState(false);
     const [vidRec, setVidRec] = useState(false);
@@ -1026,10 +1037,23 @@
       return unsub;
     },[]);
 
+    // Загрузка/создание username
+    useEffect(()=>{
+      if(!user) return;
+      const ref=db.collection("users").doc(user.uid);
+      ref.get().then(doc=>{
+        if(doc.exists && doc.data().username){ setUsername(doc.data().username); return; }
+        const uname=genUsername(user.displayName);
+        ref.set({username:uname,displayName:user.displayName||"Рыбак"},{merge:true});
+        setUsername(uname);
+      });
+    },[user]);
+
     // строит base в момент вызова (не при рендере) — избегает stale uid
     const mkBase = () => ({
       uid: user.uid,
       displayName: user.displayName || "Рыбак",
+      username: username || genUsername(user.displayName||"рыбак"),
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 
@@ -1041,13 +1065,31 @@
       return await ref.getDownloadURL();
     };
 
+    /* ── reactions ── */
+    const toggleReaction = async (msgId, emoji) => {
+      if(!user){ onLogin(); return; }
+      setSelectedMsg(null);
+      const ref=db.collection("messages").doc(msgId);
+      const doc=await ref.get();
+      const reactions=doc.data().reactions||{};
+      const uids=reactions[emoji]||[];
+      const mine=uids.includes(user.uid);
+      const newUids=mine?uids.filter(u=>u!==user.uid):[...uids,user.uid];
+      const upd={};
+      upd[`reactions.${emoji}`]=newUids.length>0?newUids:firebase.firestore.FieldValue.delete();
+      await ref.update(upd);
+    };
+
     /* ── text ── */
     const send = async () => {
       const text = input.trim(); if(!text) return;
       if(!user){ onLogin(); return; }
-      setInput("");
+      setInput(""); setReplyTo(null); setSelectedMsg(null);
       try {
-        await db.collection("messages").add({...mkBase(), type:"text", text});
+        const base = mkBase();
+        const msg = {...base, type:"text", text};
+        if(replyTo) msg.replyTo={id:replyTo.id,text:replyTo.text||"",displayName:replyTo.displayName,username:replyTo.username||""};
+        await db.collection("messages").add(msg);
       } catch(e) {
         setInput(text);
         alert("Ошибка отправки: " + e.message + "\n\nПроверь правила Firestore — разреши write для коллекции messages.");
@@ -1206,21 +1248,59 @@
             const isVideo=msg.type==="video"&&msg.videoUrl;
             const isVoice=msg.type==="voice"&&msg.voiceUrl;
             const isImage=msg.type==="image"&&msg.imageUrl;
+            const isSel=selectedMsg===msg.id;
+            const rxEntries=Object.entries(msg.reactions||{}).filter(([,u])=>u&&u.length>0);
             return (
-              <div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",marginBottom:10,animation:"fadeUp .25s ease"}}>
-                {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{(msg.displayName||"Р")[0].toUpperCase()}</div>}
-                <div style={{maxWidth:isVideo?"160px":"75%"}}>
-                  {!isMe&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:3,paddingLeft:4}}>{msg.displayName}</div>}
-                  {isVideo&&<div><VideoNote url={msg.videoUrl} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div></div>}
-                  {isVoice&&<div><VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div></div>}
-                  {isImage&&<div>
-                    <img src={msg.imageUrl} alt="" onClick={()=>window.open(msg.imageUrl,"_blank")} style={{maxWidth:220,maxHeight:200,borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",display:"block",cursor:"pointer",objectFit:"cover"}}/>
-                    <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div>
-                  </div>}
-                  {!isVideo&&!isVoice&&!isImage&&<div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
-                    {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
-                  </div>}
+              <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",marginBottom:10,animation:"fadeUp .25s ease"}}>
+                <div style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",width:"100%"}}>
+                  {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{(msg.displayName||"Р")[0].toUpperCase()}</div>}
+                  <div style={{maxWidth:isVideo?"160px":"75%"}} onClick={()=>setSelectedMsg(isSel?null:msg.id)}>
+                    {!isMe&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:2,paddingLeft:4}}>
+                      {msg.displayName}
+                      {msg.username&&<span style={{color:C.dimmer,fontWeight:400,marginLeft:4}}>@{msg.username}</span>}
+                    </div>}
+                    {/* Reply preview inside bubble */}
+                    {msg.replyTo&&<div style={{margin:"0 0 6px",padding:"6px 10px",borderRadius:8,background:"rgba(255,255,255,.06)",borderLeft:`3px solid ${col}`,cursor:"default"}} onClick={e=>e.stopPropagation()}>
+                      <div style={{fontSize:10,color:col,fontWeight:700,marginBottom:1}}>{msg.replyTo.displayName}{msg.replyTo.username?` @${msg.replyTo.username}`:""}</div>
+                      <div style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}}>{msg.replyTo.text||"медиафайл"}</div>
+                    </div>}
+                    {isVideo&&<div><VideoNote url={msg.videoUrl} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div></div>}
+                    {isVoice&&<div><VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isMe} col={col}/><div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div></div>}
+                    {isImage&&<div>
+                      <img src={msg.imageUrl} alt="" onClick={e=>{e.stopPropagation();window.open(msg.imageUrl,"_blank");}} style={{maxWidth:220,maxHeight:200,borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",display:"block",cursor:"pointer",objectFit:"cover"}}/>
+                      <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div>
+                    </div>}
+                    {!isVideo&&!isVoice&&!isImage&&<div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
+                      {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
+                    </div>}
+                  </div>
                 </div>
+
+                {/* Reactions display */}
+                {rxEntries.length>0&&<div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap",paddingLeft:isMe?0:40}}>
+                  {rxEntries.map(([emoji,uids])=>(
+                    <button key={emoji} onClick={()=>toggleReaction(msg.id,emoji)}
+                      style={{display:"flex",alignItems:"center",gap:3,padding:"3px 8px",borderRadius:20,border:`1px solid ${uids.includes(user?.uid)?C.borderHi:C.border}`,background:uids.includes(user?.uid)?C.accentDim:"rgba(255,255,255,.04)",cursor:"pointer",fontSize:13}}>
+                      <span>{emoji}</span><span style={{fontSize:11,color:C.muted,fontWeight:700}}>{uids.length}</span>
+                    </button>
+                  ))}
+                </div>}
+
+                {/* Action bar: reply + reaction picker */}
+                {isSel&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6,padding:"4px 8px",background:"rgba(7,17,30,.96)",borderRadius:20,border:`1px solid ${C.border}`,boxShadow:"0 4px 16px rgba(0,0,0,.5)",animation:"fadeUp .15s ease",paddingLeft:isMe?8:40}}>
+                  <button onClick={()=>{setReplyTo(msg);setSelectedMsg(null);}} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:14,background:"none",border:`1px solid ${C.border}`,color:C.muted,fontSize:11,cursor:"pointer",fontWeight:700}}>
+                    ↩ Ответить
+                  </button>
+                  <div style={{width:1,height:20,background:C.border,margin:"0 2px"}}/>
+                  {REACTIONS_LIST.map(emoji=>(
+                    <button key={emoji} onClick={()=>toggleReaction(msg.id,emoji)}
+                      style={{width:32,height:32,borderRadius:"50%",background:"none",border:"none",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",transition:"transform .15s"}}
+                      onMouseOver={e=>e.currentTarget.style.transform="scale(1.3)"}
+                      onMouseOut={e=>e.currentTarget.style.transform="scale(1)"}>
+                      {emoji}
+                    </button>
+                  ))}
+                </div>}
               </div>
             );
           })}
@@ -1236,6 +1316,16 @@
         </div>}
 
         {mediaUploading&&<div style={{padding:"8px 14px",background:C.accentDim,borderTop:`1px solid ${C.border}`,fontSize:12,color:C.accent,textAlign:"center"}}>Загружаем медиафайл...</div>}
+
+        {/* Reply preview bar */}
+        {replyTo&&<div style={{padding:"8px 14px",background:"rgba(46,204,113,.08)",borderTop:`1px solid rgba(46,204,113,.25)`,display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:3,height:36,borderRadius:2,background:C.accent,flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,color:C.accent,fontWeight:700,marginBottom:1}}>↩ {replyTo.displayName}{replyTo.username?` @${replyTo.username}`:""}</div>
+            <div style={{fontSize:12,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{replyTo.text||"медиафайл"}</div>
+          </div>
+          <button onClick={()=>setReplyTo(null)} style={{background:"none",border:"none",cursor:"pointer",color:C.dimmer,fontSize:20,lineHeight:1,padding:"0 4px"}}>×</button>
+        </div>}
 
         {/* Панель вложений */}
         {attachOpen&&<div style={{padding:"12px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.97)",display:"flex",gap:12,justifyContent:"center",animation:"slideUp .2s ease"}}>
@@ -1466,6 +1556,13 @@
   /* ── PROFILE ── */
   function ProfileScreen({ user, onLogin }) {
     if (!user) return <RequireAuth user={user} onLogin={onLogin}><div/></RequireAuth>;
+    const [profileUsername, setProfileUsername] = useState("");
+    useEffect(()=>{
+      db.collection("users").doc(user.uid).get().then(doc=>{
+        if(doc.exists && doc.data().username) setProfileUsername(doc.data().username);
+        else setProfileUsername(genUsername(user.displayName||"рыбак"));
+      });
+    },[user]);
     const stats=[{label:"Уловов",val:"47"},{label:"Рекорд (кг)",val:"12.3"},{label:"Дней",val:"38"}];
     const menu=[
       {Icon:Clock,label:"История уловов",href:"#"},
@@ -1478,6 +1575,7 @@
         <div style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.12),rgba(59,130,246,.08))",padding:24,textAlign:"center",marginBottom:14}}>
           <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 12px",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 24px ${C.accentGlow}`,fontSize:28,fontWeight:800,color:"#07111e"}}>{(user.displayName||"Р")[0].toUpperCase()}</div>
           <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:2}}>{user.displayName||"Рыбак"}</div>
+          {profileUsername&&<div style={{fontSize:13,color:C.accent,fontWeight:700,marginBottom:2}}>@{profileUsername}</div>}
           <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{user.email}</div>
           <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:10}}>{[1,2,3,4,5].map(i=><Star key={i} size={14} color={C.gold} fill={C.gold}/>)}</div>
         </div>
