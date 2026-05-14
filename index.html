@@ -2133,12 +2133,13 @@
       return cities.sort((a,b)=>haversine(userLat,userLon,a.lat,a.lon)-haversine(userLat,userLon,b.lat,b.lon))[0];
     },[userLat,userLon]);
     const [tab,setTab]=useState("news");
-    const [newsItems,setNewsItems]=useState(NEWS_ITEMS);
-    const [newsLoading,setNewsLoading]=useState(false);
+    const [newsItems,setNewsItems]=useState([]);
+    const [newsLoading,setNewsLoading]=useState(true);
     const [newIds,setNewIds]=useState(new Set());
     const [lastUpdated,setLastUpdated]=useState(null);
     const [newCount,setNewCount]=useState(0);
-    const seenIdsRef=useRef(new Set(NEWS_ITEMS.map(n=>n.id)));
+    const seenIdsRef=useRef(new Set());
+    const firstSnapRef=useRef(true);
     const [notifEnabled,setNotifEnabled]=useState(()=>!!localStorage.getItem('fcm_token'));
 
     const requestNotif=async()=>{
@@ -2175,22 +2176,27 @@
 
     // Реальное время: Firestore onSnapshot (бот пишет, сайт читает)
     useEffect(()=>{
-      setNewsLoading(true);
       const unsub=db.collection("news").orderBy("timestamp","desc").limit(20)
         .onSnapshot(snap=>{
           setNewsLoading(false);
-          if(snap.empty) return;
+          if(snap.empty){ setNewsItems(NEWS_ITEMS); return; }
           const items=snap.docs.map(d=>({id:d.id,...d.data(),
             date:d.data().timestamp?.toDate?.().toLocaleDateString("ru-RU",{day:"numeric",month:"long"})||""}));
-          const fresh=items.filter(it=>!seenIdsRef.current.has(it.id));
-          if(fresh.length>0){
-            fresh.forEach(it=>seenIdsRef.current.add(it.id));
-            setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
-            setNewCount(n=>n+fresh.length);
-            setNewsItems(prev=>[...fresh,...prev].slice(0,30));
+          if(firstSnapRef.current){
+            firstSnapRef.current=false;
+            items.forEach(it=>seenIdsRef.current.add(it.id));
+            setNewsItems(items);
+          } else {
+            const fresh=items.filter(it=>!seenIdsRef.current.has(it.id));
+            if(fresh.length>0){
+              fresh.forEach(it=>seenIdsRef.current.add(it.id));
+              setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
+              setNewCount(n=>n+fresh.length);
+            }
+            setNewsItems(items);
           }
           setLastUpdated(new Date());
-        }, err=>{ console.log("news snapshot err",err); setNewsLoading(false); });
+        }, err=>{ console.log("news snapshot err",err); setNewsLoading(false); setNewsItems(NEWS_ITEMS); });
       return unsub;
     },[]);
 
@@ -2266,6 +2272,10 @@
                 </div>
               </div>
             </div>
+            {newsLoading&&newsItems.length===0&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"48px 0",gap:12}}>
+              <div style={{width:32,height:32,borderRadius:"50%",border:`3px solid ${C.accent}`,borderTopColor:"transparent",animation:"spin 1s linear infinite"}}/>
+              <div style={{fontSize:12,color:C.muted}}>Загружаем новости...</div>
+            </div>}
             {[...newsItems].sort((a,b)=>{
               if(!nearestCity) return 0;
               const kws=nearestCity.kw;
