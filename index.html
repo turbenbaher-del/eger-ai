@@ -159,14 +159,25 @@
     };
   }
 
-  /* ── Bite score (давление + месяц) ── */
-  function calcBiteScore(pressure, month) {
-    let score = 7;
-    if (pressure >= 758 && pressure <= 765) score = 9;
-    else if (pressure >= 750 && pressure <= 770) score = 8;
-    else if (pressure < 745 || pressure > 775) score = 5;
-    if (month >= 4 && month <= 9) score = Math.min(10, score + 1);
-    return score;
+  /* ── Bite score (давление, ветер, температура, месяц) ── */
+  function calcBiteScore(pressure, month, wind=0, waterTemp=15, rain=0) {
+    let score = 6;
+    // Давление
+    if (pressure >= 758 && pressure <= 765) score += 3;
+    else if (pressure >= 750 && pressure <= 770) score += 2;
+    else if (pressure >= 745 && pressure <= 775) score += 1;
+    else score -= 1;
+    // Ветер
+    if (wind <= 3) score += 1;
+    else if (wind > 8) score -= 1;
+    // Температура воды
+    if (waterTemp >= 14 && waterTemp <= 22) score += 1;
+    else if (waterTemp < 5 || waterTemp > 28) score -= 1;
+    // Осадки
+    if (rain >= 60) score -= 1;
+    // Сезонный бонус
+    if (month >= 4 && month <= 9) score += 1;
+    return Math.max(1, Math.min(10, score));
   }
 
   /* ── Геолокация — модульные переменные (обновляются из App) ── */
@@ -274,7 +285,7 @@
         const month = new Date().getMonth();
         const hour = new Date().getHours();
         if(!w) return "Данные погоды ещё загружаются. Клёв на Дону обычно пиковый 5:00–8:00 — приходи к рассвету!";
-        const score = calcBiteScore(w.pressure, month);
+        const score = calcBiteScore(w.pressure, month, w.wind, w.waterTemp, w.daily?.precipitation_probability_max?.[0]??0);
         const label = score>=9?"🔥 превосходный!":score>=8?"✅ отличный!":score>=6?"👍 хороший":score>=4?"⚠️ средний":"❌ слабый";
         const moon = moonPhase();
         const timeHint = hour>=4&&hour<=8?"⏰ Сейчас пиковые утренние часы — самое время!":hour>=17&&hour<=20?"🌅 Вечерний выход рыбы — не пропусти!":hour>=21||hour<=3?"🌙 Ночное время — сом и судак активны":"☀️ Дневное время, лучший клёв — утром и вечером";
@@ -444,7 +455,7 @@
         const months = ["январе","феврале","марте","апреле","мае","июне","июле","августе","сентябре","октябре","ноябре","декабре"];
         const moon = moonPhase();
         const tips = ["Окунь и плотва у берега, щука — жерлицы. Сазан и лещ на глубоких ямах 8+ м, клёв вялый.","Щука начинает нерест у берегов. Плотва активизируется.","Нерест щуки. Плотва и уклея на перекатах. Жерех первые выходы.","🌸 Лучший месяц! Лещ, плотва, жерех, окунь активны.","🔥 Пик сезона! Лещ, сазан, карась, жерех, тарань. Судак открывается 20-го.","Белый амур, карп, сазан, лещ. Ранние утра 4:00–8:00.","☀️ Жара — рыба на глубине днём. Сазан, карп, сом ночью.","Клёв восстанавливается. Судак, лещ, сазан, карп — хороший сезон.","🍂 Жор начинается! Судак, щука, лещ, карп.","🍁 Лучший месяц для хищника! Судак, щука, берш, окунь.","Судак и щука до ледостава. Лещ уходит в ямы.","Плотва, окунь — первый лёд на водохранилищах."];
-        const score = w ? calcBiteScore(w.pressure, month) : null;
+        const score = w ? calcBiteScore(w.pressure, month, w.wind, w.waterTemp, w.daily?.precipitation_probability_max?.[0]??0) : null;
         return `В ${months[month]} на Дону: ${seasonFish(month)}\n\n${tips[month]}\n\n${moon.ico} ${moon.tip}\n\n${score!==null?`Сейчас (давление ${w.pressure} мм): ${score>=7?"хороший клёв":"при нестабильном давлении хищник активнее мирной рыбы"}.`:"Лучшее время — утро 5:00–8:00."}`;
       }
     },
@@ -654,7 +665,7 @@
     // Если совсем ничего не нашли — ответ на основе погоды
     if(weather){
       const month = new Date().getMonth();
-      const score = calcBiteScore(weather.pressure, month);
+      const score = calcBiteScore(weather.pressure, month, weather.wind, weather.waterTemp, weather.daily?.precipitation_probability_max?.[0]??0);
       const moon = moonPhase();
       const scoreText = score>=8?"отличный":score>=6?"хороший":score>=4?"средний":"слабый";
       const nearShops = fmtNearestShops(2);
@@ -1034,7 +1045,7 @@
   /* ── HOME ── */
   function HomeScreen({ onGoChat, weather, weatherLoading, onRefreshWeather, setTab, userLat, userLon, user, onLogin }) {
     const month = new Date().getMonth();
-    const biteScore = weather ? calcBiteScore(weather.pressure, month) : 8;
+    const biteScore = weather ? calcBiteScore(weather.pressure, month, weather.wind, weather.waterTemp, weather.daily?.precipitation_probability_max?.[0]??0) : 8;
     const biteLabel = biteScore>=9?"Превосходный!":biteScore>=8?"Отличный!":biteScore>=6?"Хороший":biteScore>=4?"Средний":"Слабый";
 
     // Ближайшие водоёмы по геолокации
@@ -1665,7 +1676,7 @@
     );
 
     const month = new Date().getMonth();
-    const biteScore = calcBiteScore(weather.pressure, month);
+    const biteScore = calcBiteScore(weather.pressure, month, weather.wind, weather.waterTemp, weather.daily?.precipitation_probability_max?.[0]??0);
     const moon = moonPhase();
     const biteLabel = biteScore>=9?"🔥 Превосходный!":biteScore>=8?"✅ Отличный":biteScore>=7?"👍 Хороший":biteScore>=5?"⚠️ Средний":"❌ Слабый";
     const biteColor = biteScore>=8?"#2ecc71":biteScore>=6?"#f59e0b":"#ef4444";
