@@ -3592,6 +3592,34 @@
     const [userLat, setUserLat] = useState(null);
     const [userLon, setUserLon] = useState(null);
     const geoRef = useRef({lat: null, lon: null});
+    const [fabPos, setFabPos] = useState(()=>{ const s=localStorage.getItem("eger_fab_pos"); return s?JSON.parse(s):null; });
+    const fabDrag = useRef({active:false,moved:false,startX:0,startY:0,startLeft:0,startTop:0});
+
+    const onFabTouchStart = useCallback((e)=>{
+      const t=e.touches[0];
+      const el=e.currentTarget.getBoundingClientRect();
+      fabDrag.current={active:true,moved:false,startX:t.clientX,startY:t.clientY,startLeft:el.left,startTop:el.top};
+    },[]);
+    const onFabTouchMove = useCallback((e)=>{
+      if(!fabDrag.current.active) return;
+      const t=e.touches[0];
+      const dx=t.clientX-fabDrag.current.startX, dy=t.clientY-fabDrag.current.startY;
+      if(!fabDrag.current.moved && Math.abs(dx)<5 && Math.abs(dy)<5) return;
+      fabDrag.current.moved=true;
+      e.preventDefault();
+      const newLeft=Math.max(8,Math.min(window.innerWidth-68, fabDrag.current.startLeft+dx));
+      const newTop=Math.max(8,Math.min(window.innerHeight-68, fabDrag.current.startTop+dy));
+      setFabPos({left:newLeft,top:newTop});
+    },[]);
+    const onFabTouchEnd = useCallback((e)=>{
+      if(!fabDrag.current.active) return;
+      fabDrag.current.active=false;
+      if(fabDrag.current.moved){
+        setFabPos(p=>{ const pos=p||{}; localStorage.setItem("eger_fab_pos",JSON.stringify(pos)); return pos; });
+      } else {
+        logEvent("catch_button_tapped"); setShowCatch(true);
+      }
+    },[]);
 
     useEffect(()=>{ const u=auth.onAuthStateChanged(u=>{setUser(u);setAuthLoading(false);}); return u; },[]);
 
@@ -3712,8 +3740,26 @@
         {showCatch && user && <CatchModal user={user} userLat={userLat} userLon={userLon} weather={weather} onClose={()=>setShowCatch(false)}/>}
         {showOnboarding && <OnboardingModal onDone={()=>{ localStorage.setItem("eger_onboarded","1"); setShowOnboarding(false); }}/>}
         {user && !showCatch && (
-          <button onClick={()=>{logEvent("catch_button_tapped");setShowCatch(true);}}
-            style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom,0px) + 76px)",right:"max(calc(50vw - 199px),16px)",width:60,height:60,borderRadius:30,background:"linear-gradient(135deg,#1a8a50,#2ecc71)",border:"none",cursor:"pointer",zIndex:99,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,animation:"fabPulse 3s ease infinite"}}>
+          <button
+            onTouchStart={onFabTouchStart}
+            onTouchMove={onFabTouchMove}
+            onTouchEnd={onFabTouchEnd}
+            onClick={fabDrag.current.moved?undefined:()=>{logEvent("catch_button_tapped");setShowCatch(true);}}
+            style={{
+              position:"fixed",
+              ...(fabPos
+                ? {left:fabPos.left,top:fabPos.top}
+                : {bottom:"calc(env(safe-area-inset-bottom,0px) + 76px)",right:"max(calc(50vw - 199px),16px)"}),
+              width:60,height:60,borderRadius:30,
+              background:"linear-gradient(135deg,#1a8a50,#2ecc71)",
+              border:"none",cursor:"grab",zIndex:99,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:26,
+              animation:fabDrag.current.active?"none":"fabPulse 3s ease infinite",
+              touchAction:"none",
+              userSelect:"none",
+              WebkitUserSelect:"none",
+            }}>
             🐟
           </button>
         )}
