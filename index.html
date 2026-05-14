@@ -1367,7 +1367,6 @@
             {topPts.map((s,i)=>{
               const distKm = userLat&&userLon ? Math.round(haversine(userLat,userLon,s.lat,s.lon)) : null;
               const isBase = s._type==="base";
-              // Динамический балл: базовый клёв ± дистанция
               const distBonus = distKm===null?0:distKm<5?2:distKm<15?1:distKm<40?0:-1;
               const scoreVal = Math.max(1,Math.min(10,bs+distBonus-(i*0.3|0)));
               const scoreColor = scoreVal>=8?C.accent:scoreVal>=6?C.gold:"#ef4444";
@@ -1394,29 +1393,28 @@
               </a>
               );
             })}
+            <div onClick={onGoChat} style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.18),rgba(34,211,238,.10))",padding:"14px 18px",marginTop:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 14px ${C.accentGlow}`}}><Fish size={19} color="#07111e"/></div>
+                <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Спроси Егеря</div><div style={{fontSize:11,color:C.muted}}>ИИ-помощник рыбака</div></div>
+              </div>
+              <ChevronRight size={18} color={C.accent}/>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <div onClick={()=>setTab("leaderboard")} style={{...glass(),flex:1,padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,borderRadius:16}}>
+                <div style={{width:34,height:34,borderRadius:10,background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.25)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Trophy size={15} color={C.gold}/></div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:C.text}}>Рейтинг</div><div style={{fontSize:10,color:C.muted}}>топ рыбаков</div></div>
+                <ChevronRight size={12} color={C.dimmer}/>
+              </div>
+              <div onClick={()=>setTab("tournament")} style={{...glass(),flex:1,padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,borderRadius:16}}>
+                <div style={{width:34,height:34,borderRadius:10,background:"rgba(34,211,238,.10)",border:"1px solid rgba(34,211,238,.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Star size={15} color={C.cyan}/></div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:C.text}}>Турниры</div><div style={{fontSize:10,color:C.muted}}>соревнования</div></div>
+                <ChevronRight size={12} color={C.dimmer}/>
+              </div>
+            </div>
           </div>
           );
         })()}
-          <div onClick={onGoChat} style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.18),rgba(34,211,238,.10))",padding:"14px 18px",marginTop:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 14px ${C.accentGlow}`}}><Fish size={19} color="#07111e"/></div>
-              <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Спроси Егеря</div><div style={{fontSize:11,color:C.muted}}>ИИ-помощник рыбака</div></div>
-            </div>
-            <ChevronRight size={18} color={C.accent}/>
-          </div>
-          <div style={{display:"flex",gap:8,marginTop:8}}>
-            <div onClick={()=>setTab("leaderboard")} style={{...glass(),flex:1,padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,borderRadius:16}}>
-              <div style={{width:34,height:34,borderRadius:10,background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.25)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Trophy size={15} color={C.gold}/></div>
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:C.text}}>Рейтинг</div><div style={{fontSize:10,color:C.muted}}>топ рыбаков</div></div>
-              <ChevronRight size={12} color={C.dimmer}/>
-            </div>
-            <div onClick={()=>setTab("tournament")} style={{...glass(),flex:1,padding:"12px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,borderRadius:16}}>
-              <div style={{width:34,height:34,borderRadius:10,background:"rgba(34,211,238,.10)",border:"1px solid rgba(34,211,238,.2)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Star size={15} color={C.cyan}/></div>
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:700,color:C.text}}>Турниры</div><div style={{fontSize:10,color:C.muted}}>соревнования</div></div>
-              <ChevronRight size={12} color={C.dimmer}/>
-            </div>
-          </div>
-        </div>
         {recentCatches.length>0&&(
           <div style={{animation:"fadeUp .8s ease",marginTop:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
