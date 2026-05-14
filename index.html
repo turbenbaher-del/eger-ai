@@ -65,6 +65,7 @@
   });
   const auth = firebase.auth();
   const db = firebase.firestore();
+  db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
   const storage = firebase.storage();
   const messaging = firebase.messaging();
   let _analytics; try{_analytics=firebase.analytics();}catch(e){}
@@ -1166,7 +1167,7 @@
           <WPill Icon={Thermometer} val={weather?`+${weather.airTemp}°C`:"…"} label="воздух" color={C.gold} loading={weatherLoading}/>
           <WPill Icon={Droplets}    val={weather?`+${weather.waterTemp}°C`:"…"} label="вода"   color={C.cyan} loading={weatherLoading}/>
           <WPill Icon={Wind}        val={weather?`${weather.wind} м/с`:"…"}  label={weather&&weather.windDir!=null?(()=>{const dirs=["С","СВ","В","ЮВ","Ю","ЮЗ","З","СЗ"];return dirs[Math.round(weather.windDir/45)%8];})():"ветер"} color={C.blue} loading={weatherLoading}/>
-          <WPill Icon={Waves}       val={levelStr} label={waterLevel?"Дон · живой":"Дон · сезон"} color={C.accent} loading={false}/>
+          <WPill Icon={Waves}       val={levelStr} label={waterLevel?(levelVal>20?"▲ растёт":levelVal<-20?"▼ низкий":"→ норма"):"Дон · сезон"} color={levelVal>20?C.cyan:levelVal<-20?"#ef4444":C.accent} loading={false}/>
         </div>
         {/* Рыболовные запреты */}
         {(()=>{
@@ -3810,9 +3811,16 @@
             {fish?.name||record.fishName||"Рыба"} {wStr&&<span style={{color:C.accent,fontWeight:800}}>{wStr}</span>}
           </div>
           <div style={{fontSize:11,color:C.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{record.locationName||"Место не указано"}</div>
-          {record.gearType&&<div style={{fontSize:10,color:C.dimmer,marginTop:1}}>{record.gearType}</div>}
+          <div style={{display:"flex",gap:6,marginTop:2,flexWrap:"wrap"}}>
+            {record.gearType&&<span style={{fontSize:10,color:C.dimmer}}>{record.gearType}</span>}
+            {record.depthM&&<span style={{fontSize:10,color:"rgba(34,211,238,.6)"}}>📏{record.depthM}м</span>}
+            {record.distanceM&&<span style={{fontSize:10,color:"rgba(34,211,238,.6)"}}>↔{record.distanceM}м</span>}
+          </div>
         </div>
-        <div style={{fontSize:11,color:C.dimmer,flexShrink:0}}>{dateStr}</div>
+        <div style={{textAlign:"right",flexShrink:0}}>
+          <div style={{fontSize:11,color:C.dimmer}}>{dateStr}</div>
+          {record.isPublic&&<div style={{fontSize:9,color:C.accent,marginTop:2}}>📢 публ.</div>}
+        </div>
       </div>
     );
   }
@@ -3981,8 +3989,11 @@
         await db.collection("catches").doc(user.uid).collection("records").add(rec);
         logEvent("catch_saved",{source:"manual",fish_type:fishType,weight_g:rec.weightGrams||0,has_photo:false});
         onSaved?.();
+        if(!navigator.onLine){
+          alert("✅ Улов сохранён локально.\nОн синхронизируется когда появится интернет.");
+        }
         onClose();
-      } catch(e){ setSaving(false); alert("Ошибка сохранения"); }
+      } catch(e){ setSaving(false); alert("Ошибка сохранения: "+e.message); }
     };
 
     return (
