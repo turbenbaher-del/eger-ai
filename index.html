@@ -999,6 +999,7 @@
     const [username, setUsername] = useState("");
     const [replyTo, setReplyTo] = useState(null);
     const [selectedMsg, setSelectedMsg] = useState(null);
+    const [editingMsg, setEditingMsg] = useState(null); // {id, text}
     // video circle state
     const [showVideoRec, setShowVideoRec] = useState(false);
     const [vidRec, setVidRec] = useState(false);
@@ -1089,10 +1090,38 @@
       if(Object.keys(upd).length>0) await ref.update(upd);
     };
 
-    /* ── text ── */
+    /* ── delete ── */
+    const deleteMsg = async (msgId) => {
+      setSelectedMsg(null);
+      await db.collection("messages").doc(msgId).delete();
+    };
+
+    /* ── edit ── */
+    const startEdit = (msg) => {
+      setEditingMsg({id: msg.id, text: msg.text});
+      setInput(msg.text);
+      setSelectedMsg(null);
+    };
+
+    const cancelEdit = () => {
+      setEditingMsg(null);
+      setInput("");
+    };
+
+    /* ── text / edit ── */
     const send = async () => {
       const text = input.trim(); if(!text) return;
       if(!user){ onLogin(); return; }
+
+      // Режим редактирования
+      if(editingMsg) {
+        setInput(""); setEditingMsg(null);
+        try {
+          await db.collection("messages").doc(editingMsg.id).update({text, edited: true});
+        } catch(e) { alert("Ошибка редактирования: " + e.message); }
+        return;
+      }
+
       setInput(""); setReplyTo(null); setSelectedMsg(null);
       try {
         const base = mkBase();
@@ -1304,7 +1333,11 @@
                       <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div>
                     </div>}
                     {!isVideo&&!isVoice&&!isImage&&<div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
-                      {msg.text}<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right"}}>{ts}</div>
+                      {msg.text}
+                      <div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right",display:"flex",justifyContent:"flex-end",gap:6}}>
+                        {msg.edited&&<span>изменено</span>}
+                        <span>{ts}</span>
+                      </div>
                     </div>}
                   </div>
                 </div>
@@ -1319,11 +1352,17 @@
                   ))}
                 </div>}
 
-                {/* Action bar: reply + reaction picker */}
-                {isSel&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6,padding:"4px 8px",background:"rgba(7,17,30,.96)",borderRadius:20,border:`1px solid ${C.border}`,boxShadow:"0 4px 16px rgba(0,0,0,.5)",animation:"fadeUp .15s ease",paddingLeft:isMe?8:40}}>
+                {/* Action bar: reply + reactions + edit/delete */}
+                {isSel&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:6,padding:"4px 8px",background:"rgba(7,17,30,.96)",borderRadius:20,border:`1px solid ${C.border}`,boxShadow:"0 4px 16px rgba(0,0,0,.5)",animation:"fadeUp .15s ease",flexWrap:"wrap",maxWidth:320}}>
                   <button onClick={()=>{setReplyTo(msg);setSelectedMsg(null);}} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:14,background:"none",border:`1px solid ${C.border}`,color:C.muted,fontSize:11,cursor:"pointer",fontWeight:700}}>
                     ↩ Ответить
                   </button>
+                  {isMe&&msg.type==="text"&&<button onClick={()=>startEdit(msg)} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:14,background:"none",border:`1px solid ${C.border}`,color:C.cyan,fontSize:11,cursor:"pointer",fontWeight:700}}>
+                    ✏️ Изменить
+                  </button>}
+                  {isMe&&<button onClick={()=>deleteMsg(msg.id)} style={{display:"flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:14,background:"none",border:"1px solid rgba(239,68,68,.4)",color:"#f87171",fontSize:11,cursor:"pointer",fontWeight:700}}>
+                    🗑 Удалить
+                  </button>}
                   <div style={{width:1,height:20,background:C.border,margin:"0 2px"}}/>
                   {REACTIONS_LIST.map(emoji=>(
                     <button key={emoji} onClick={()=>toggleReaction(msg.id,emoji)}
@@ -1349,6 +1388,16 @@
         </div>}
 
         {mediaUploading&&<div style={{padding:"8px 14px",background:C.accentDim,borderTop:`1px solid ${C.border}`,fontSize:12,color:C.accent,textAlign:"center"}}>Загружаем медиафайл...</div>}
+
+        {/* Edit mode bar */}
+        {editingMsg&&<div style={{padding:"8px 14px",background:"rgba(34,211,238,.08)",borderTop:`1px solid rgba(34,211,238,.25)`,display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:3,height:36,borderRadius:2,background:C.cyan,flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,color:C.cyan,fontWeight:700,marginBottom:1}}>✏️ Редактирование</div>
+            <div style={{fontSize:12,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{editingMsg.text}</div>
+          </div>
+          <button onClick={cancelEdit} style={{background:"none",border:"none",cursor:"pointer",color:C.dimmer,fontSize:20,lineHeight:1,padding:"0 4px"}}>×</button>
+        </div>}
 
         {/* Reply preview bar */}
         {replyTo&&<div style={{padding:"8px 14px",background:"rgba(46,204,113,.08)",borderTop:`1px solid rgba(46,204,113,.25)`,display:"flex",alignItems:"center",gap:10}}>
@@ -1396,7 +1445,7 @@
 
           <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-            placeholder={user?"Написать в чат...":"Войдите чтобы писать..."}
+            placeholder={editingMsg?"Редактировать сообщение...":user?"Написать в чат...":"Войдите чтобы писать..."}
             style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:14,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}}
             onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
           {input.trim()
