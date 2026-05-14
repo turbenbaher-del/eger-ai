@@ -1031,7 +1031,7 @@
   function Typing(){return(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><div style={{width:34,height:34,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 14px ${C.accentGlow}`,flexShrink:0}}><Fish size={17} color="#07111e"/></div><div style={{padding:"12px 16px",borderRadius:"18px 18px 18px 4px",background:"rgba(255,255,255,0.07)",border:`1px solid ${C.border}`,display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=>(<div key={i} style={{width:7,height:7,borderRadius:"50%",background:C.accent,animation:`bounce 1.2s ease ${i*.2}s infinite`}}/>))}</div></div>);}
 
   /* ── HOME ── */
-  function HomeScreen({ onGoChat, weather, weatherLoading, onRefreshWeather, setTab, userLat, userLon }) {
+  function HomeScreen({ onGoChat, weather, weatherLoading, onRefreshWeather, setTab, userLat, userLon, user, onLogin }) {
     const month = new Date().getMonth();
     const biteScore = weather ? calcBiteScore(weather.pressure, month) : 8;
     const biteLabel = biteScore>=9?"Превосходный!":biteScore>=8?"Отличный!":biteScore>=6?"Хороший":biteScore>=4?"Средний":"Слабый";
@@ -1080,6 +1080,22 @@
         .then(snap=>setRecentCatches(snap.docs.map(d=>({...d.data(),id:d.id}))))
         .catch(()=>{});
     },[]);
+
+    // User quick stats (total catches, best catch, this month)
+    const [quickStats, setQuickStats] = useState(null);
+    useEffect(()=>{
+      if(!user?.uid) return;
+      db.collection("catches").doc(user.uid).collection("records")
+        .orderBy("createdAt","desc").limit(200).get()
+        .then(snap=>{
+          const recs=snap.docs.map(d=>d.data());
+          const total=recs.length;
+          const best=recs.reduce((b,r)=>((r.weightGrams||0)>(b||0)?r.weightGrams:b),0);
+          const now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1);
+          const thisMonth=recs.filter(r=>{const d=r.createdAt?.toDate?.();return d&&d>=ms;}).length;
+          setQuickStats({total,bestKg:best?+(best/1000).toFixed(2):null,thisMonth});
+        }).catch(()=>{});
+    },[user?.uid]);
 
     // Nearby catches (within 20km, last 6 hours)
     const [nearbyCatches, setNearbyCatches] = useState([]);
@@ -1174,6 +1190,31 @@
             </div>
           );
         })()}
+
+        {/* User quick stats */}
+        {user&&quickStats&&quickStats.total>0&&(
+          <div style={{...glass(),padding:"12px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:0,animation:"fadeUp .62s ease",background:"rgba(46,204,113,.05)"}}>
+            <div style={{flex:1,textAlign:"center",borderRight:`1px solid ${C.border}`}}>
+              <div style={{fontSize:20,fontWeight:800,color:C.accent}}>{quickStats.total}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>всего уловов</div>
+            </div>
+            <div style={{flex:1,textAlign:"center",borderRight:`1px solid ${C.border}`}}>
+              <div style={{fontSize:20,fontWeight:800,color:C.cyan}}>{quickStats.thisMonth}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>в этом месяце</div>
+            </div>
+            <div style={{flex:1,textAlign:"center"}}>
+              <div style={{fontSize:20,fontWeight:800,color:C.gold}}>{quickStats.bestKg?`${quickStats.bestKg} кг`:"—"}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>лучший улов</div>
+            </div>
+          </div>
+        )}
+        {user===null&&(
+          <div onClick={onLogin} style={{...glass(),padding:"10px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:10,cursor:"pointer",animation:"fadeUp .62s ease",background:"rgba(46,204,113,.04)"}}>
+            <span style={{fontSize:13}}>👤</span>
+            <span style={{fontSize:12,color:C.muted,flex:1}}>Войдите, чтобы вести личный дневник и статистику</span>
+            <span style={{fontSize:12,color:C.accent,fontWeight:700}}>Войти →</span>
+          </div>
+        )}
 
         {nearbyCatches.length>0&&(
           <div style={{...glass(`0 0 0 1px rgba(46,204,113,.3)`),padding:"12px 14px",marginBottom:14,animation:"fadeUp .65s ease",background:"rgba(46,204,113,.07)"}}>
@@ -3839,6 +3880,8 @@
     const [fishType, setFishType] = useState("");
     const [weightKg, setWeightKg] = useState("");
     const [lengthCm, setLengthCm] = useState("");
+    const [depthM, setDepthM] = useState("");
+    const [distanceM, setDistanceM] = useState("");
     const [locationName, setLocationName] = useState(userLat?getNearestSpotName(userLat,userLon):"");
     const [dateStr, setDateStr] = useState(()=>new Date().toISOString().slice(0,16));
     const [gearType, setGearType] = useState("");
@@ -3858,6 +3901,8 @@
           if(r.gearType) setGearType(r.gearType);
           if(r.bait) setBait(r.bait);
           if(r.catchMethod) setCatchMethod(r.catchMethod);
+          if(r.depthM) setDepthM(String(r.depthM));
+          if(r.distanceM) setDistanceM(String(r.distanceM));
         });
     };
 
@@ -3870,6 +3915,8 @@
         fishType, fishName: FISH_TYPES.find(f=>f.id===fishType)?.name||"",
         weightGrams: weightKg ? Math.round(parseFloat(weightKg)*1000) : null,
         lengthCm: lengthCm ? parseFloat(lengthCm) : null,
+        depthM: depthM ? parseFloat(depthM) : null,
+        distanceM: distanceM ? parseFloat(distanceM) : null,
         locationName: locationName||"Место не указано",
         lat: userLat||null, lng: userLon||null,
         gearType: gearType||null, bait: bait||null,
@@ -3969,6 +4016,17 @@
           <div style={{marginBottom:12}}>
             <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ПРИМАНКА / НАЖИВКА</div>
             <input value={bait} onChange={e=>setBait(e.target.value)} placeholder="Напр.: Джиг, червь..." style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:13,boxSizing:"border-box",outline:"none"}}/>
+          </div>
+          {/* Depth & Distance */}
+          <div style={{display:"flex",gap:10,marginBottom:12}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ГЛУБИНА (М)</div>
+              <input type="number" step="0.5" min="0" value={depthM} onChange={e=>setDepthM(e.target.value)} placeholder="2.5" style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700}}>ДИСТАНЦИЯ (М)</div>
+              <input type="number" step="1" min="0" value={distanceM} onChange={e=>setDistanceM(e.target.value)} placeholder="30" style={{width:"100%",padding:"9px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}}/>
+            </div>
           </div>
           {/* Notes */}
           <div style={{marginBottom:20}}>
@@ -4811,7 +4869,7 @@
         </header>
 
         <main key={tab} style={{flex:1,overflow:"hidden",position:"relative",zIndex:1,animation:"fadeIn .2s ease"}}>
-          {tab==="home"      && <HomeScreen onGoChat={()=>goTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={goTab} userLat={userLat} userLon={userLon}/>}
+          {tab==="home"      && <HomeScreen onGoChat={()=>goTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={goTab} userLat={userLat} userLon={userLon} user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="diary"     && <DiaryScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
           {tab==="chat"      && <ChatScreen weather={weather} userLat={userLat} userLon={userLon} user={user}/>}
           {tab==="mapall"    && <MapCombinedScreen userLat={userLat} userLon={userLon} user={user}/>}
