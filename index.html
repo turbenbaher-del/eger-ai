@@ -9,6 +9,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-messaging-compat.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.3/babel.min.js"></script>
@@ -47,6 +48,8 @@
   const auth = firebase.auth();
   const db = firebase.firestore();
   const storage = firebase.storage();
+  const messaging = firebase.messaging();
+  const VAPID_KEY = 'REPLACE_WITH_VAPID_KEY';
 
   /* ── Icons ── */
   const ic = (paths, extra={}) => ({ size=24, color='currentColor', style }) => (
@@ -1553,20 +1556,30 @@
     const [lastUpdated,setLastUpdated]=useState(null);
     const [newCount,setNewCount]=useState(0);
     const seenIdsRef=useRef(new Set(NEWS_ITEMS.map(n=>n.id)));
-    const [notifPerm,setNotifPerm]=useState(()=>"Notification" in window?Notification.permission:"unsupported");
-    const notifPermRef=useRef(notifPerm);
-    useEffect(()=>{ notifPermRef.current=notifPerm; },[notifPerm]);
+    const [notifEnabled,setNotifEnabled]=useState(()=>!!localStorage.getItem('fcm_token'));
 
     const requestNotif=async()=>{
-      if(!("Notification" in window)) return;
-      const p=await Notification.requestPermission();
-      setNotifPerm(p); notifPermRef.current=p;
+      if(!("serviceWorker" in navigator)) return;
+      try{
+        const reg=await navigator.serviceWorker.register('/eger-ai/firebase-messaging-sw.js');
+        const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+        if(token){
+          await db.collection("fcm_tokens").doc(token).set({
+            createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+            ua:navigator.userAgent.slice(0,100)
+          });
+          localStorage.setItem('fcm_token',token);
+          setNotifEnabled(true);
+        }
+      }catch(e){ console.log("FCM error:",e); }
     };
 
-    const sendNotif=(title,body)=>{
-      if(notifPermRef.current!=="granted"||document.visibilityState==="visible") return;
-      try{ new Notification(title,{body:body.slice(0,120),icon:"https://turbenbaher-del.github.io/eger-ai/favicon.ico",tag:"eger-news",renotify:true}); }catch(e){}
-    };
+    useEffect(()=>{
+      if(!notifEnabled) return;
+      return messaging.onMessage(payload=>{
+        setNewCount(n=>n+1);
+      });
+    },[notifEnabled]);
     const [reports,setReports]=useState([]);
     const [reportsErr,setReportsErr]=useState(false);
     const [showForm,setShowForm]=useState(false);
@@ -1591,8 +1604,6 @@
               setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
               setNewCount(n=>n+fresh.length);
               setNewsItems(prev=>[...fresh,...prev].slice(0,30));
-              if(fresh.length===1) sendNotif(`🎣 ${fresh[0].title}`,fresh[0].text||"");
-              else sendNotif(`🎣 Рыбалка: ${fresh.length} новых новости`,fresh.map(it=>it.title).join(" · ").slice(0,120));
             } else if(items.length>0){
               setNewsItems(prev=>{
                 const existingIds=new Set(prev.map(p=>p.id));
@@ -1669,11 +1680,11 @@
                 {newCount>0&&<span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#ef4444",borderRadius:10,padding:"1px 7px",cursor:"pointer"}} onClick={()=>setNewCount(0)}>+{newCount} новых</span>}
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                {notifPerm!=="unsupported"&&(
-                  <button onClick={requestNotif} title={notifPerm==="granted"?"Уведомления включены":"Включить уведомления"}
-                    style={{background:notifPerm==="granted"?`rgba(46,204,113,.15)`:"none",border:`1px solid ${notifPerm==="granted"?C.accent:C.border}`,borderRadius:10,padding:"4px 8px",color:notifPerm==="granted"?C.accent:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4,transition:"all .2s"}}>
-                    {notifPerm==="granted"?<BellIcon size={11} color={C.accent}/>:<BellOffIcon size={11} color={C.muted}/>}
-                    {notifPerm==="granted"?"Вкл":"Уведомления"}
+                {"serviceWorker" in navigator&&(
+                  <button onClick={notifEnabled?undefined:requestNotif} title={notifEnabled?"Уведомления включены":"Включить push-уведомления"}
+                    style={{background:notifEnabled?`rgba(46,204,113,.15)`:"none",border:`1px solid ${notifEnabled?C.accent:C.border}`,borderRadius:10,padding:"4px 8px",color:notifEnabled?C.accent:C.muted,fontSize:11,cursor:notifEnabled?"default":"pointer",display:"flex",alignItems:"center",gap:4,transition:"all .2s"}}>
+                    {notifEnabled?<BellIcon size={11} color={C.accent}/>:<BellOffIcon size={11} color={C.muted}/>}
+                    {notifEnabled?"Push вкл":"Уведомления"}
                   </button>
                 )}
                 <button onClick={async()=>{setNewsLoading(true);try{const it=await fetchRssNews();if(it.length>0){const fr=it.filter(x=>!seenIdsRef.current.has(x.id));fr.forEach(x=>seenIdsRef.current.add(x.id));if(fr.length>0){setNewIds(p=>new Set([...p,...fr.map(x=>x.id)]));setNewCount(n=>n+fr.length);}setNewsItems(it);setLastUpdated(new Date());}}catch(e){}setNewsLoading(false);}}
