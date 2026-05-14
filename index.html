@@ -102,8 +102,8 @@
   });
 
   /* ── Weather fetch (Open-Meteo, бесплатно) ── */
-  async function fetchWeather() {
-    const url = "https://api.open-meteo.com/v1/forecast?latitude=47.27&longitude=39.87" +
+  async function fetchWeather(lat = 47.27, lon = 39.87) {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       "&current=temperature_2m,wind_speed_10m,surface_pressure,weather_code,relative_humidity_2m" +
       "&wind_speed_unit=ms&timezone=Europe%2FMoscow";
     const r = await fetch(url);
@@ -133,6 +133,16 @@
     return score;
   }
 
+  /* ── Геолокация — модульные переменные (обновляются из App) ── */
+  let _uLat = null, _uLon = null;
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371, p = Math.PI / 180;
+    const dLat = (lat2 - lat1) * p, dLon = (lon2 - lon1) * p;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*p)*Math.cos(lat2*p)*Math.sin(dLon/2)**2;
+    return R * 2 * Math.asin(Math.sqrt(a));
+  }
+
   /* ── AI Егерь — интент-система ── */
 
   const SPOTS = {
@@ -154,7 +164,33 @@
     жерех:  [{n:"Быстрый перекат (Аксай)",c:"47.2612,39.8812"},{n:"Перекат у Семикаракорск",c:"47.5101,40.8234"},{n:"Цимлянские перекаты",c:"47.6234,42.0712"}],
   };
 
-  const fmtSpots = (arr) => arr.map(s=>`📍 ${s.n}\nhttps://maps.google.com/?q=${s.c}`).join("\n\n");
+  const fmtSpots = (arr) => {
+    let sorted = arr;
+    if (_uLat && _uLon) {
+      sorted = [...arr].sort((a, b) => {
+        const [aLat, aLon] = a.c.split(",").map(Number);
+        const [bLat, bLon] = b.c.split(",").map(Number);
+        return haversine(_uLat, _uLon, aLat, aLon) - haversine(_uLat, _uLon, bLat, bLon);
+      });
+    }
+    return sorted.map(s => {
+      const [sLat, sLon] = s.c.split(",").map(Number);
+      const dist = _uLat && _uLon ? ` · ${Math.round(haversine(_uLat, _uLon, sLat, sLon))} км` : "";
+      return `📍 ${s.n}${dist}\nhttps://maps.google.com/?q=${s.c}`;
+    }).join("\n\n");
+  };
+
+  // Ближайшие магазины по геолокации (SHOPS определён ниже, доступен при вызове)
+  const fmtNearestShops = (n = 2) => {
+    if (!_uLat || !_uLon) return "";
+    const sorted = [...SHOPS].sort((a, b) =>
+      haversine(_uLat, _uLon, a.lat, a.lng) - haversine(_uLat, _uLon, b.lat, b.lng)
+    );
+    return "\n\n🏪 Ближайшие магазины:\n" + sorted.slice(0, n).map(s => {
+      const d = Math.round(haversine(_uLat, _uLon, s.lat, s.lng));
+      return `• ${s.name} — ${s.city}, ${s.addr} (${d} км)`;
+    }).join("\n");
+  };
 
   const ALL_SPOTS_TEXT = `Топ точек по Ростовской области:\n\n📍 Вторая дамба (Аксай) — лещ, сазан, карп\nhttps://maps.google.com/?q=47.2681,39.8699\n\n📍 Гниловская переправа — судак, жерех\nhttps://maps.google.com/?q=47.1734,39.7012\n\n📍 Мёртвый Донец (Ливенцовка) — щука, карась\nhttps://maps.google.com/?q=47.2198,39.6234\n\n📍 Камышовая заводь (Батайск) — карась, карп\nhttps://maps.google.com/?q=47.1456,39.7456\n\n📍 Перекат ниже Аксая — сазан\nhttps://maps.google.com/?q=47.2456,39.9012\n\n📍 Цимлянское вдхр. — лещ, судак, сом\nhttps://maps.google.com/?q=47.6421,42.0954\n\n📍 Манычское вдхр. (Пролетарск) — амур, карп\nhttps://maps.google.com/?q=46.7012,41.7234`;
 
@@ -420,9 +456,10 @@
     if(weather){
       const score = calcBiteScore(weather.pressure, new Date().getMonth());
       const scoreText = score>=8?"отличный":score>=6?"хороший":score>=4?"средний":"слабый";
+      const nearShops = fmtNearestShops(2);
       return score>=7
-        ? `Клёв сегодня ${scoreText}! 🎣\n\nДавление ${weather.pressure} мм — рыба активна. Рекомендую:\n• Лещ на фидер — Вторая дамба (Аксай), утро 5:00–8:00\n• Сазан — перекат ниже Аксая\n• Судак — Гниловская переправа, вечер\n\n📍 Вторая дамба:\nhttps://maps.google.com/?q=47.2681,39.8699\n\nСпроси про конкретную рыбу или снасть — отвечу подробнее.`
-        : `Клёв ${scoreText} (давление ${weather.pressure} мм).\n\nПри нестабильной погоде лучше берёт хищник:\n• Щука — Мёртвый Донец, воблер-суспендер\n• Судак — Гниловская переправа, джиг\n\n📍 Гниловская переправа:\nhttps://maps.google.com/?q=47.1734,39.7012\n\nСпроси что-нибудь конкретное — помогу с выбором снасти, точки или насадки.`;
+        ? `Клёв сегодня ${scoreText}! 🎣\n\nДавление ${weather.pressure} мм — рыба активна. Рекомендую:\n• Лещ на фидер — ${fmtSpots([SPOTS.лещ[0]])}\n• Сазан — ${fmtSpots([SPOTS.сазан[0]])}\n• Судак — ${fmtSpots([SPOTS.судак[0]])}${nearShops}\n\nСпроси про конкретную рыбу или снасть — отвечу подробнее.`
+        : `Клёв ${scoreText} (давление ${weather.pressure} мм).\n\nПри нестабильной погоде лучше берёт хищник:\n• Щука — ${fmtSpots([SPOTS.щука[0]])}\n• Судак — ${fmtSpots([SPOTS.судак[0]])}${nearShops}\n\nСпроси что-нибудь конкретное — помогу с выбором снасти, точки или насадки.`;
     }
     return pick([
       `Спроси меня конкретнее 🎣\n\nЯ могу рассказать про:\n• Любой вид рыбы — где ловить, на что, когда\n• Точки с GPS-координатами\n• Прогноз клёва по погоде\n• Снасти, приманки, прикормки\n• Запреты и нормы вылова\n• Рыбалку с лодки, ночью\n\nПример: "где ловить сома", "как прикормить леща", "лучшее время для карася"`,
@@ -644,7 +681,7 @@
   function Typing(){return(<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}><div style={{width:34,height:34,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 14px ${C.accentGlow}`,flexShrink:0}}><Fish size={17} color="#07111e"/></div><div style={{padding:"12px 16px",borderRadius:"18px 18px 18px 4px",background:"rgba(255,255,255,0.07)",border:`1px solid ${C.border}`,display:"flex",gap:5,alignItems:"center"}}>{[0,1,2].map(i=>(<div key={i} style={{width:7,height:7,borderRadius:"50%",background:C.accent,animation:`bounce 1.2s ease ${i*.2}s infinite`}}/>))}</div></div>);}
 
   /* ── HOME ── */
-  function HomeScreen({ onGoChat, weather, weatherLoading, onRefreshWeather, setTab }) {
+  function HomeScreen({ onGoChat, weather, weatherLoading, onRefreshWeather, setTab, userLat, userLon }) {
     const month = new Date().getMonth();
     const biteScore = weather ? calcBiteScore(weather.pressure, month) : 8;
     const biteLabel = biteScore>=9?"Превосходный!":biteScore>=8?"Отличный!":biteScore>=6?"Хороший":biteScore>=4?"Средний":"Слабый";
@@ -669,7 +706,7 @@
                 </button>
               </div>
               <div style={{fontSize:20,fontWeight:800,color:C.text,lineHeight:1.2}}>{biteLabel}</div>
-              <div style={{fontSize:12,color:C.muted,marginTop:2}}>Аксайский р-н · Дон · {weather?"обновлено "+weather.updated:"загрузка..."}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:2}}>{userLat?"📍 По вашей геолокации":"Аксайский р-н · Дон"} · {weather?"обновлено "+weather.updated:"загрузка..."}</div>
             </div>
             <BiteArc score={biteScore}/>
           </div>
@@ -730,7 +767,7 @@
   }
 
   /* ── AI CHAT ── */
-  function ChatScreen({ weather }) {
+  function ChatScreen({ weather, userLat, userLon }) {
     const [msgs, setMsgs] = useState([{role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime()}]);
     const [input, setInput] = useState("");
     const [typing, setTyping] = useState(false);
@@ -1503,7 +1540,7 @@
     {id:30,name:"Рыболов Волгодонск",       addr:"ул. Рабочая, 88",             city:"Волгодонск",     phone:"+7 (8639) 22-44-00", hours:"9:00–21:00",  lat:47.5134, lng:42.1523, rating:4.3, cnt:42,  tags:["Цимлянское","фидер","лещ","спиннинг","судак"]},
   ];
 
-  function ShopsScreen() {
+  function ShopsScreen({ userLat, userLon }) {
     const mapDiv = useRef(null);
     const lmap = useRef(null);
     const mRefs = useRef({});
@@ -1527,11 +1564,17 @@
     useEffect(()=>{
       if(!mapDiv.current||lmap.current) return;
       const L=window.L; if(!L) return;
-      const map=L.map(mapDiv.current,{center:[47.3,39.85],zoom:9,zoomControl:false});
+      const center = userLat && userLon ? [userLat, userLon] : [47.3, 39.85];
+      const zoom = userLat && userLon ? 12 : 9;
+      const map=L.map(mapDiv.current,{center,zoom,zoomControl:false});
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
         attribution:'© <a href="https://openstreetmap.org">OSM</a> © <a href="https://carto.com">CARTO</a>',maxZoom:19
       }).addTo(map);
       L.control.zoom({position:"topright"}).addTo(map);
+      if(userLat && userLon){
+        L.circleMarker([userLat, userLon],{radius:8,fillColor:"#22d3ee",color:"#fff",weight:2,fillOpacity:0.9})
+          .bindPopup("📍 Вы здесь").addTo(map);
+      }
       SHOPS.forEach(shop=>{
         const mkIcon=(active)=>L.divIcon({html:PIN_HTML(active),iconSize:[32,40],iconAnchor:[15,40],className:""});
         const m=L.marker([shop.lat,shop.lng],{icon:mkIcon(false)}).addTo(map);
@@ -1562,11 +1605,19 @@
       setSelected(null);
     };
 
-    const filtered=SHOPS.filter(s=>{
-      if(!search) return true;
-      const q=search.toLowerCase();
-      return s.name.toLowerCase().includes(q)||s.addr.toLowerCase().includes(q)||s.city.toLowerCase().includes(q)||s.tags.some(t=>t.includes(q));
-    });
+    const shopDist = (s) => userLat && userLon ? haversine(userLat, userLon, s.lat, s.lng) : null;
+
+    const filtered = SHOPS
+      .filter(s=>{
+        if(!search) return true;
+        const q=search.toLowerCase();
+        return s.name.toLowerCase().includes(q)||s.addr.toLowerCase().includes(q)||s.city.toLowerCase().includes(q)||s.tags.some(t=>t.includes(q));
+      })
+      .sort((a, b) => {
+        const da = shopDist(a), db = shopDist(b);
+        if(da !== null && db !== null) return da - db;
+        return 0;
+      });
 
     const PANEL_H=selected?300:260;
     const o=selected?isOpen(selected.hours):false;
@@ -1647,6 +1698,7 @@
                           <Stars r={shop.rating}/>
                           <span style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>{shop.rating}</span>
                           <span style={{fontSize:10,color:C.dimmer}}>• {shop.hours}</span>
+                          {shopDist(shop)!==null&&<span style={{fontSize:10,fontWeight:700,color:C.cyan,marginLeft:4}}>📍 {Math.round(shopDist(shop))} км</span>}
                         </div>
                       </div>
                     </button>
@@ -1671,16 +1723,41 @@
     const [unreadChat, setUnreadChat] = useState(0);
     const [unreadNews, setUnreadNews] = useState(0);
     const tabRef = useRef("home");
+    const [userLat, setUserLat] = useState(null);
+    const [userLon, setUserLon] = useState(null);
+    const geoRef = useRef({lat: null, lon: null});
 
     useEffect(()=>{ const u=auth.onAuthStateChanged(u=>{setUser(u);setAuthLoading(false);}); return u; },[]);
 
     const loadWeather = useCallback(async()=>{
       setWeatherLoading(true);
-      try { setWeather(await fetchWeather()); } catch(e){ console.log("weather error",e); }
+      const {lat, lon} = geoRef.current;
+      try { setWeather(await fetchWeather(lat||47.27, lon||39.87)); } catch(e){ console.log("weather error",e); }
       setWeatherLoading(false);
     },[]);
 
     useEffect(()=>{ loadWeather(); const t=setInterval(loadWeather,10*60*1000); return()=>clearInterval(t); },[loadWeather]);
+
+    // Геолокация пользователя
+    useEffect(()=>{
+      if(!("geolocation" in navigator)) return;
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const lat = pos.coords.latitude, lon = pos.coords.longitude;
+          _uLat = lat; _uLon = lon;
+          geoRef.current = {lat, lon};
+          setUserLat(lat); setUserLon(lon);
+          // Перезагружаем погоду по реальной позиции
+          (async()=>{
+            setWeatherLoading(true);
+            try { setWeather(await fetchWeather(lat, lon)); } catch(e){}
+            setWeatherLoading(false);
+          })();
+        },
+        err => console.log("geo denied", err.message),
+        {enableHighAccuracy: false, timeout: 12000, maximumAge: 5*60*1000}
+      );
+    },[]);
 
     // Запрос разрешения на уведомления
     useEffect(()=>{
@@ -1787,10 +1864,10 @@
         </header>
 
         <main style={{flex:1,overflow:"hidden",position:"relative",zIndex:1}}>
-          {tab==="home"      && <HomeScreen onGoChat={()=>goTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={goTab}/>}
-          {tab==="chat"      && <ChatScreen weather={weather}/>}
+          {tab==="home"      && <HomeScreen onGoChat={()=>goTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={goTab} userLat={userLat} userLon={userLon}/>}
+          {tab==="chat"      && <ChatScreen weather={weather} userLat={userLat} userLon={userLon}/>}
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
-          {tab==="map"       && <ShopsScreen/>}
+          {tab==="map"       && <ShopsScreen userLat={userLat} userLon={userLon}/>}
           {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)}/>}
         </main>
