@@ -28,6 +28,8 @@
     @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
     @keyframes fadeIn { from{opacity:0} to{opacity:1} }
     @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    @keyframes newsSlideIn { 0%{opacity:0;transform:translateY(-18px) scale(.97)} 65%{transform:translateY(3px) scale(1.012)} 100%{opacity:1;transform:translateY(0) scale(1)} }
+    @keyframes glowFlash { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} 45%{box-shadow:0 0 22px 5px rgba(239,68,68,.32)} }
   </style>
 </head>
 <body>
@@ -1657,8 +1659,8 @@
             {newsItems.map(n=>{
               const isNew=newIds.has(n.id);
               return(
-                <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease",border:isNew?`1px solid rgba(239,68,68,.4)`:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
-                  {isNew&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#ef4444,#f59e0b)"}}/>}
+                <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:isNew?"newsSlideIn .5s cubic-bezier(.22,.61,.36,1), glowFlash 1.4s ease .35s":"fadeUp .3s ease",border:isNew?`1px solid rgba(239,68,68,.4)`:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
+                  {isNew&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#ef4444,#f59e0b)",animation:"pulseGlow 2s ease 3"}}/>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                       <span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span>
