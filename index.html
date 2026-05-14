@@ -1071,8 +1071,30 @@
         .sort((a,b)=>haversine(userLat,userLon,a.lat,a.lon)-haversine(userLat,userLon,b.lat,b.lon))
         .slice(0,3);
     },[userLat,userLon]);
-    const PRESSURE_LABELS=["8ч","","10ч","","12ч","","14ч","","16ч","","18ч",""];
-    const pressureData = weather ? [...PRESSURE_DATA.slice(0,-1), weather.pressure] : PRESSURE_DATA;
+    const nowHour = new Date().getHours();
+    const pressureData = useMemo(()=>{
+      if (!weather?.hourly?.surface_pressure) return PRESSURE_DATA;
+      return Array.from({length:12},(_,i)=>{
+        const h = nowHour - 11 + i;
+        const idx = Math.max(0, h);
+        const raw = idx < weather.hourly.surface_pressure.length
+          ? weather.hourly.surface_pressure[idx]
+          : weather.pressure / 0.750064;
+        return Math.round(raw * 0.750064);
+      });
+    },[weather, nowHour]);
+    const pressureLabels = useMemo(()=>{
+      return Array.from({length:6},(_,i)=>{
+        const h = ((nowHour - 10 + i*2) % 24 + 24) % 24;
+        return `${h}ч`;
+      });
+    },[nowHour]);
+    const pressureTrend = useMemo(()=>{
+      if (!weather?.hourly?.surface_pressure || nowHour < 2) return "";
+      const curr = Math.round(weather.hourly.surface_pressure[nowHour] * 0.750064);
+      const prev = Math.round(weather.hourly.surface_pressure[Math.max(0, nowHour-3)] * 0.750064);
+      return curr - prev > 2 ? " ▲" : curr - prev < -2 ? " ▼" : " →";
+    },[weather, nowHour]);
 
     // Recent community catches
     const [recentCatches, setRecentCatches] = useState([]);
@@ -1139,12 +1161,14 @@
           </div>
           <div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-              <span style={{fontSize:10,color:C.dimmer,letterSpacing:1.5}}>ДАВЛЕНИЕ (ммрт)</span>
-              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{weather?`${weather.pressure} мм`:"…"}</span>
+              <span style={{fontSize:10,color:C.dimmer,letterSpacing:1.5}}>ДАВЛЕНИЕ (ммрт) · 12 ч</span>
+              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{weather?`${weather.pressure} мм${pressureTrend}`:"…"}</span>
             </div>
             <Sparkline data={pressureData}/>
             <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-              {PRESSURE_LABELS.filter((_,i)=>i%2===0).map((l,i)=>(<span key={i} style={{fontSize:9,color:C.dimmer}}>{l}</span>))}
+              {pressureLabels.map((l,i)=>(
+                <span key={i} style={{fontSize:9,color:i===5?C.accent:C.dimmer,fontWeight:i===5?700:400}}>{l}</span>
+              ))}
             </div>
           </div>
           <div style={{background:"rgba(0,0,0,.3)",borderRadius:14,padding:"12px 14px",borderLeft:`3px solid ${C.accent}`}}>
