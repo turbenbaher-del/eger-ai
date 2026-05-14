@@ -93,6 +93,8 @@
   const RefreshCw=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
   const BellIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>);
   const BellOffIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>);
+  const Cloud=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>);
+  const Droplets=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></svg>);
 
   /* ── Tokens ── */
   const C = {
@@ -112,7 +114,9 @@
   async function fetchWeather(lat = 47.27, lon = 39.87) {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       "&current=temperature_2m,wind_speed_10m,surface_pressure,weather_code,relative_humidity_2m" +
-      "&wind_speed_unit=ms&timezone=Europe%2FMoscow";
+      "&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,sunrise,sunset" +
+      "&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code" +
+      "&forecast_days=7&wind_speed_unit=ms&timezone=Europe%2FMoscow";
     const r = await fetch(url);
     const d = await r.json();
     const c = d.current;
@@ -127,6 +131,8 @@
       humidity: c.relative_humidity_2m,
       code: c.weather_code,
       updated: new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),
+      daily: d.daily,
+      hourly: d.hourly,
     };
   }
 
@@ -1162,6 +1168,177 @@
               </button>
           }
         </div>
+      </div>
+    );
+  }
+
+  /* ── WEATHER ── */
+  function WeatherScreen({ weather, weatherLoading, onRefresh }) {
+    const DAYS_RU = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+
+    const wIcon = (code) => {
+      if(code===0) return "☀️";
+      if(code===1) return "🌤️";
+      if(code===2) return "⛅";
+      if(code===3) return "☁️";
+      if(code<=48) return "🌫️";
+      if(code<=57) return "🌦️";
+      if(code<=67) return "🌧️";
+      if(code<=77) return "❄️";
+      if(code<=82) return "🌦️";
+      if(code<=86) return "🌨️";
+      return "⛈️";
+    };
+    const wDesc = (code) => {
+      if(code===0) return "Ясно";
+      if(code===1) return "Малооблачно";
+      if(code===2) return "Переменная облачность";
+      if(code===3) return "Пасмурно";
+      if(code<=48) return "Туман";
+      if(code<=57) return "Морось";
+      if(code<=67) return "Дождь";
+      if(code<=77) return "Снег";
+      if(code<=82) return "Ливень";
+      if(code<=86) return "Снегопад";
+      return "Гроза";
+    };
+
+    if(weatherLoading && !weather) return (
+      <div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14}}>
+        <div style={{width:36,height:36,borderRadius:"50%",border:`3px solid ${C.accent}`,borderTopColor:"transparent",animation:"spin 1s linear infinite"}}/>
+        <div style={{color:C.muted,fontSize:13}}>Загружаем прогноз...</div>
+      </div>
+    );
+    if(!weather) return (
+      <div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,padding:24}}>
+        <div style={{fontSize:44}}>🌤️</div>
+        <div style={{color:C.text,fontSize:16,fontWeight:700}}>Нет данных</div>
+        <button onClick={onRefresh} style={{padding:"10px 24px",borderRadius:12,border:"none",background:C.accent,color:"#07111e",fontWeight:700,cursor:"pointer"}}>Обновить</button>
+      </div>
+    );
+
+    const month = new Date().getMonth();
+    const biteScore = calcBiteScore(weather.pressure, month);
+    const moon = moonPhase();
+    const biteLabel = biteScore>=9?"🔥 Превосходный!":biteScore>=8?"✅ Отличный":biteScore>=7?"👍 Хороший":biteScore>=5?"⚠️ Средний":"❌ Слабый";
+    const biteColor = biteScore>=8?"#2ecc71":biteScore>=6?"#f59e0b":"#ef4444";
+
+    // Next 12 hours from now
+    const nowHour = new Date().getHours();
+    const hourly = weather.hourly;
+    const hourlySlice = hourly ? Array.from({length:12},(_,i)=>{
+      const idx = nowHour + i;
+      if(idx >= hourly.time.length) return null;
+      return {
+        time: hourly.time[idx].slice(11,16),
+        temp: Math.round(hourly.temperature_2m[idx]),
+        precip: hourly.precipitation_probability[idx]||0,
+        wind: Math.round(hourly.wind_speed_10m[idx]),
+        code: hourly.weather_code[idx],
+      };
+    }).filter(Boolean) : [];
+
+    return (
+      <div style={{height:"100%",overflowY:"auto",padding:"12px 14px 32px"}}>
+
+        {/* ── Current ── */}
+        <div style={{...glass(`0 0 0 1px ${C.borderHi}`),padding:"20px 16px 16px",marginBottom:10,textAlign:"center",position:"relative"}}>
+          <button onClick={onRefresh} style={{position:"absolute",top:12,right:12,background:"none",border:"none",cursor:"pointer"}}>
+            <RefreshCw size={15} color={C.muted}/>
+          </button>
+          <div style={{fontSize:60,lineHeight:1,marginBottom:6}}>{wIcon(weather.code)}</div>
+          <div style={{fontSize:54,fontWeight:900,color:C.text,lineHeight:1}}>
+            {weather.airTemp>0?"+":""}{weather.airTemp}°
+          </div>
+          <div style={{fontSize:14,color:C.muted,marginTop:4,marginBottom:14}}>{wDesc(weather.code)}</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+            {[
+              {ico:"💨",val:`${weather.wind} м/с`,lbl:"Ветер"},
+              {ico:"💧",val:`${weather.humidity}%`,lbl:"Влажность"},
+              {ico:"⏱",val:`${weather.pressure} мм`,lbl:"Давление"},
+            ].map(({ico,val,lbl})=>(
+              <div key={lbl} style={{background:"rgba(255,255,255,.05)",borderRadius:10,padding:"8px 4px",textAlign:"center"}}>
+                <div style={{fontSize:20}}>{ico}</div>
+                <div style={{fontSize:13,fontWeight:700,color:C.text,marginTop:2}}>{val}</div>
+                <div style={{fontSize:10,color:C.muted}}>{lbl}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:20,background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.25)"}}>
+            <span style={{fontSize:11,color:C.cyan,fontWeight:700}}>🌊 Вода +{weather.waterTemp}°C</span>
+            <span style={{fontSize:10,color:C.dimmer}}>· обновлено {weather.updated}</span>
+          </div>
+        </div>
+
+        {/* ── Bite score ── */}
+        <div style={{...glass(),padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:14}}>
+          <div style={{width:58,height:58,borderRadius:"50%",border:`3px solid ${biteColor}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 0 14px ${biteColor}55`}}>
+            <div style={{fontSize:20,fontWeight:900,color:biteColor,lineHeight:1}}>{biteScore}</div>
+            <div style={{fontSize:8,color:C.dimmer,letterSpacing:.5}}>ИЗ 10</div>
+          </div>
+          <div>
+            <div style={{fontSize:15,fontWeight:800,color:biteColor,marginBottom:3}}>{biteLabel}</div>
+            <div style={{fontSize:11,color:C.muted}}>{moon.ico} {moon.tip}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+              {weather.pressure>=758&&weather.pressure<=765?"Давление идеальное — вся рыба активна":
+               weather.pressure>768?"Высокое давление — лещ и карась берут хорошо":
+               weather.pressure<750?"Низкое давление — хищник оживляется":"Давление в норме"}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Hourly today ── */}
+        {hourlySlice.length>0 && (
+          <div style={{...glass(),marginBottom:10,padding:"12px 12px 8px 14px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>Сегодня по часам</div>
+            <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6}}>
+              {hourlySlice.map((h,i)=>(
+                <div key={i} style={{flexShrink:0,textAlign:"center",padding:"8px 8px",borderRadius:12,
+                  background:i===0?"rgba(46,204,113,.1)":"rgba(255,255,255,.04)",
+                  border:`1px solid ${i===0?C.borderHi:C.border}`,minWidth:52}}>
+                  <div style={{fontSize:10,color:i===0?C.accent:C.muted,fontWeight:i===0?700:400}}>{i===0?"Сейчас":h.time}</div>
+                  <div style={{fontSize:20,margin:"4px 0"}}>{wIcon(h.code)}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:C.text}}>{h.temp>0?"+":""}{h.temp}°</div>
+                  {h.precip>20&&<div style={{fontSize:9,color:"#60a5fa",marginTop:2}}>💧{h.precip}%</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── 7-day forecast ── */}
+        {weather.daily && (
+          <div style={{...glass(),padding:"12px 14px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:6}}>Прогноз на 7 дней</div>
+            {weather.daily.time.map((date,i)=>{
+              const d = new Date(date+"T12:00:00");
+              const maxT = Math.round(weather.daily.temperature_2m_max[i]);
+              const minT = Math.round(weather.daily.temperature_2m_min[i]);
+              const prec = weather.daily.precipitation_probability_max[i]||0;
+              const code = weather.daily.weather_code[i];
+              // Estimate bite quality from weather code (clear=good, rain=bad)
+              const biteQ = code===0?"🟢":code<=3?"🟢":code<=48?"🟡":code<=82?"🔴":"🔴";
+              return (
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",borderBottom:i<6?`1px solid ${C.border}`:"none"}}>
+                  <div style={{width:34,fontSize:12,fontWeight:i<=1?700:400,color:i===0?C.accent:i===1?"#f59e0b":C.text,flexShrink:0}}>
+                    {i===0?"Сег":i===1?"Завт":DAYS_RU[d.getDay()]}
+                  </div>
+                  <div style={{fontSize:22,flexShrink:0}}>{wIcon(code)}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{wDesc(code)}</div>
+                    {prec>20&&<div style={{fontSize:9,color:"#60a5fa"}}>💧{prec}%</div>}
+                  </div>
+                  <div style={{fontSize:10,marginRight:4}}>{biteQ}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+                    <span style={{fontSize:13,fontWeight:700,color:C.text}}>{maxT>0?"+":""}{maxT}°</span>
+                    <span style={{fontSize:11,color:C.muted}}>{minT>0?"+":""}{minT}°</span>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{fontSize:10,color:C.dimmer,marginTop:8,textAlign:"center"}}>🟢 хороший клёв · 🟡 средний · 🔴 слабый</div>
+          </div>
+        )}
       </div>
     );
   }
@@ -2473,6 +2650,7 @@
       {id:"community",label:"Чат",     Icon:MessageCircle},
       {id:"map",      label:"Магазины",Icon:Anchor},
       {id:"news",     label:"Новости", Icon:Newspaper},
+      {id:"weather",  label:"Погода",  Icon:Cloud},
       {id:"profile",  label:"Профиль", Icon:User},
     ];
 
@@ -2514,6 +2692,7 @@
           {tab==="spots"     && <MapScreen userLat={userLat} userLon={userLon}/>}
           {tab==="map"       && <ShopsScreen userLat={userLat} userLon={userLon}/>}
           {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
+          {tab==="weather"   && <WeatherScreen weather={weather} weatherLoading={weatherLoading} onRefresh={loadWeather}/>}
           {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)}/>}
         </main>
 
