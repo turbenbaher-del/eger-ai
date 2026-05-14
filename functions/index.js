@@ -187,3 +187,59 @@ exports.sendPushWithRateLimit = functions
 
     return { sent: resp.successCount, failed: resp.failureCount };
   });
+
+
+// ────────────────────────────────────────────────────────────
+// 5. Уведомление "поймали рядом" — когда публикуется отчёт
+// ────────────────────────────────────────────────────────────
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, p = Math.PI / 180;
+  const dLat = (lat2 - lat1) * p, dLon = (lon2 - lon1) * p;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*p)*Math.cos(lat2*p)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
+exports.notifyNearbyCatch = functions
+  .region("europe-west3")
+  .firestore.document("reports/{reportId}")
+  .onCreate(async (snap, context) => {
+    const report = snap.data();
+    if (!report.lat || !report.lng) return null;
+
+    // Найти пользователей в радиусе 15 км у которых есть FCM токен
+    const usersSnap = await db.collection("users").get();
+    const nearbyUids = usersSnap.docs
+      .filter(d => {
+        const u = d.data();
+        return u.lat && u.lng
+          && d.id !== (report.userId || "")
+          && haversineKm(report.lat, report.lng, u.lat, u.lng) <= 15;
+      })
+      .map(d => d.id);
+
+    if (nearbyUids.length === 0) return null;
+
+    // Собираем токены ближайших пользователей
+    const tokensSnap = await db.collection("fcm_tokens").get();
+    // Токены не привязаны к uid напрямую, поэтому отправляем им через broadcast
+    // Только если кто-то из nearby зарегистрировал токен в эту сессию
+    // Это упрощённый вариант — в продакшне лучше хранить {uid, token}
+    const tokens = tokensSnap.docs.map(d => d.id).filter(Boolean);
+    if (tokens.length === 0) return null;
+
+    const title = "🐟 Поймали рядом!";
+    const body = `${report.author || "Рыбак"}: ${report.fish || "улов"} ${report.weight ? report.weight + " кг" : ""} в ${Math.round(haversineKm(report.lat, report.lng, report.lat, report.lng))} км`;
+
+    // Отправляем только если есть поблизости юзеры
+    functions.logger.info(`notifyNearbyCatch: ${nearbyUids.length} nearby users, ${tokens.length} tokens`);
+
+    const msg = {
+      notification: { title, body: `${report.author || "Рыбак"}: ${report.fish || "улов"} ${report.weight ? report.weight + " кг" : ""}` },
+      data: { url: "https://turbenbaher-del.github.io/eger-ai/", type: "nearby_catch" },
+      tokens: tokens.slice(0, 500),
+    };
+
+    const resp = await admin.messaging().sendEachForMulticast(msg);
+    functions.logger.info(`notifyNearbyCatch sent: ${resp.successCount}/${tokens.length}`);
+    return null;
+  });

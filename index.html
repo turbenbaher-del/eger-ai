@@ -134,7 +134,7 @@
   /* ── Weather fetch (Open-Meteo, бесплатно) ── */
   async function fetchWeather(lat = 47.27, lon = 39.87) {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-      "&current=temperature_2m,wind_speed_10m,surface_pressure,weather_code,relative_humidity_2m" +
+      "&current=temperature_2m,wind_speed_10m,wind_direction_10m,surface_pressure,weather_code,relative_humidity_2m" +
       "&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,sunrise,sunset" +
       "&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code" +
       "&forecast_days=7&wind_speed_unit=ms&timezone=Europe%2FMoscow";
@@ -148,6 +148,7 @@
     return {
       airTemp, waterTemp: Math.max(2, waterTemp),
       wind: Math.round(c.wind_speed_10m),
+      windDir: c.wind_direction_10m||0,
       pressure: pressureMmHg,
       humidity: c.relative_humidity_2m,
       code: c.weather_code,
@@ -1140,7 +1141,7 @@
         <div style={{display:"flex",gap:8,marginBottom:14,animation:"fadeUp .6s ease"}}>
           <WPill Icon={Thermometer} val={weather?`+${weather.airTemp}°C`:"…"} label="воздух" color={C.gold} loading={weatherLoading}/>
           <WPill Icon={Droplets}    val={weather?`+${weather.waterTemp}°C`:"…"} label="вода"   color={C.cyan} loading={weatherLoading}/>
-          <WPill Icon={Wind}        val={weather?`${weather.wind} м/с`:"…"}  label="ветер" color={C.blue} loading={weatherLoading}/>
+          <WPill Icon={Wind}        val={weather?`${weather.wind} м/с`:"…"}  label={weather&&weather.windDir!=null?(()=>{const dirs=["С","СВ","В","ЮВ","Ю","ЮЗ","З","СЗ"];return dirs[Math.round(weather.windDir/45)%8];})():"ветер"} color={C.blue} loading={weatherLoading}/>
           <WPill Icon={Waves}       val={levelStr} label={waterLevel?"Дон · живой":"Дон · сезон"} color={C.accent} loading={false}/>
         </div>
         {nearbyCatches.length>0&&(
@@ -1496,7 +1497,7 @@
           <div style={{fontSize:14,color:C.muted,marginTop:4,marginBottom:14}}>{wDesc(weather.code)}</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
             {[
-              {ico:"💨",val:`${weather.wind} м/с`,lbl:"Ветер"},
+              {ico:"💨",val:`${weather.wind} м/с`,lbl:(()=>{const dirs=["С","СВ","В","ЮВ","Ю","ЮЗ","З","СЗ"];return "Ветер "+dirs[Math.round((weather.windDir||0)/45)%8];})()},
               {ico:"💧",val:`${weather.humidity}%`,lbl:"Влажность"},
               {ico:"⏱",val:`${weather.pressure} мм`,lbl:"Давление"},
             ].map(({ico,val,lbl})=>(
@@ -2714,6 +2715,24 @@
     const [catchStats, setCatchStats] = useState(null);
     const [badges, setBadges] = useState([]);
     const [statsLoading, setStatsLoading] = useState(true);
+    const [notifOn, setNotifOn] = useState(()=>!!localStorage.getItem("fcm_token"));
+
+    const toggleNotif = async () => {
+      if (notifOn) {
+        localStorage.removeItem("fcm_token"); setNotifOn(false); return;
+      }
+      if (!("serviceWorker" in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.register('/eger-ai/firebase-messaging-sw.js');
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+        const token = await messaging.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
+        if (token) {
+          await db.collection("fcm_tokens").doc(token).set({createdAt:firebase.firestore.FieldValue.serverTimestamp(), ua:navigator.userAgent.slice(0,100)});
+          localStorage.setItem("fcm_token", token); setNotifOn(true);
+        }
+      } catch(e) { console.log("FCM error:", e); }
+    };
 
     useEffect(()=>{
       db.collection("users").doc(user.uid).get().then(doc=>{
@@ -2788,20 +2807,24 @@
         {catchStats?.favGear&&<div style={{...glass(),padding:"12px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}><Fish size={15} color={C.accent}/><span style={{fontSize:13,color:C.text}}>Любимая снасть: <strong style={{color:C.accent}}>{catchStats.favGear}</strong></span></div>}
         {catchStats?.best&&<div style={{...glass(),padding:"12px 14px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}><Trophy size={15} color={C.gold}/><span style={{fontSize:13,color:C.text}}>Рекорд: <strong style={{color:C.gold}}>{catchStats.best.fishName||catchStats.best.fishType||"Рыба"} · {(catchStats.best.weightGrams/1000).toFixed(1)} кг</strong></span></div>}
 
-        {badges.length>0&&(
-          <div style={{...glass(),padding:"12px 14px",marginBottom:14}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,letterSpacing:.5}}>МОИ ЗНАЧКИ</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {badges.map(id=>{
-                const bd=BADGE_DEFS.find(b=>b.id===id);
-                return bd?(<div key={id} title={bd.desc} style={{padding:"5px 10px",background:C.accentDim,border:`1px solid ${C.borderHi}`,borderRadius:12,display:"flex",alignItems:"center",gap:4}}>
-                  <span style={{fontSize:14}}>{bd.emoji}</span>
-                  <span style={{fontSize:11,color:C.accent,fontWeight:700}}>{bd.name}</span>
-                </div>):null;
-              })}
-            </div>
+        <div style={{...glass(),padding:"12px 14px",marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{fontSize:11,color:C.muted,fontWeight:700,letterSpacing:.5}}>ЗНАЧКИ</div>
+            <div style={{fontSize:11,color:C.accent,fontWeight:700}}>{badges.length}/{BADGE_DEFS.length}</div>
           </div>
-        )}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+            {BADGE_DEFS.map(bd=>{
+              const has=badges.includes(bd.id);
+              return (
+                <div key={bd.id} title={bd.desc} style={{padding:"8px 6px",background:has?C.accentDim:C.surface,border:`1px solid ${has?C.borderHi:C.border}`,borderRadius:12,textAlign:"center",opacity:has?1:.45,transition:"opacity .2s"}}>
+                  <div style={{fontSize:22,marginBottom:3,filter:has?"none":"grayscale(1)"}}>{bd.emoji}</div>
+                  <div style={{fontSize:9,color:has?C.accent:C.dimmer,fontWeight:700,lineHeight:1.2}}>{bd.name}</div>
+                </div>
+              );
+            })}
+          </div>
+          {badges.length===0&&<div style={{fontSize:11,color:C.dimmer,textAlign:"center",marginTop:4}}>Поймай рыбу, чтобы получить первый значок 🎣</div>}
+        </div>
 
         {/* Monthly activity chart */}
         {catchStats?.monthly&&catchStats.monthly.some(m=>m.count>0)&&(
@@ -2847,6 +2870,10 @@
             </a>
           )
         ))}
+        <button onClick={toggleNotif} style={{width:"100%",marginTop:8,padding:"14px 16px",borderRadius:20,border:`1px solid ${notifOn?"rgba(46,204,113,.3)":"rgba(34,211,238,.3)"}`,background:notifOn?"rgba(46,204,113,.08)":"rgba(34,211,238,.08)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,cursor:"pointer"}}>
+          <span style={{fontSize:18}}>{notifOn?"🔔":"🔕"}</span>
+          <span style={{fontSize:14,color:notifOn?C.accent:C.cyan,fontWeight:700}}>{notifOn?"Уведомления включены":"Включить уведомления"}</span>
+        </button>
         <button onClick={()=>auth.signOut()} style={{width:"100%",marginTop:8,padding:"14px 16px",borderRadius:20,border:"1px solid rgba(239,68,68,.3)",background:"rgba(239,68,68,.1)",display:"flex",alignItems:"center",justifyContent:"center",gap:8,cursor:"pointer"}}>
           <LogOut size={18} color="#f87171"/><span style={{fontSize:14,color:"#f87171",fontWeight:700}}>Выйти из аккаунта</span>
         </button>
@@ -4259,6 +4286,10 @@
             try { setWeather(await fetchWeather(lat, lon)); } catch(e){}
             setWeatherLoading(false);
           })();
+          // Сохраняем геопозицию для Cloud Function near-catch уведомлений
+          auth.currentUser && db.collection("users").doc(auth.currentUser.uid).set(
+            {lat, lng:lon, geoAt:firebase.firestore.FieldValue.serverTimestamp()}, {merge:true}
+          ).catch(()=>{});
         },
         err => console.log("geo denied", err.message),
         {enableHighAccuracy: false, timeout: 12000, maximumAge: 5*60*1000}
