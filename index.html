@@ -1096,6 +1096,70 @@
       return curr - prev > 2 ? " ▲" : curr - prev < -2 ? " ▼" : " →";
     },[weather, nowHour]);
 
+    const egerAdvice = useMemo(()=>{
+      if (!weather) return "Загружаю актуальный прогноз...";
+      const moon = moonPhase();
+      const p=weather.pressure, wt=weather.waterTemp, wind=weather.wind;
+      // Pressure delta over 3h
+      let pDir=0;
+      if(weather.hourly?.surface_pressure && nowHour>=3){
+        pDir=Math.round(weather.hourly.surface_pressure[nowHour]*0.750064)
+            -Math.round(weather.hourly.surface_pressure[Math.max(0,nowHour-3)]*0.750064);
+      }
+      const isNight=nowHour>=22||nowHour<4, isDawn=nowHour>=4&&nowHour<8;
+      const isMorn=nowHour>=8&&nowHour<13, isEve=nowHour>=18&&nowHour<22;
+      const timeIco=isNight?"🌙":isDawn?"🌅":isMorn?"☀️":isEve?"🌆":"🌤";
+      const timeName=isNight?"ночью":isDawn?"на рассвете":isMorn?"утром":isEve?"вечером":"днём";
+      // Fish + gear by conditions
+      let fish,gear;
+      if(isNight&&wt>16){fish="сом";gear="донка с живцом";}
+      else if((isDawn||isEve)&&pDir<=-2){fish="судак";gear="джиг";}
+      else if(isDawn||isEve){fish="щука";gear="воблер / спиннинг";}
+      else if(pDir>2){fish="лещ и сазан";gear="фидер";}
+      else if(pDir<-2){fish="судак и берш";gear="джиг";}
+      else if(wt>=20&&(isMorn||isEve)){fish="карп";gear="бойлы / кукуруза";}
+      else if(month>=10||month<=1){fish="окунь";gear="мормышка / балансир";}
+      else{fish="лещ";gear="фидер / донка";}
+      const defSpot=nearestSpots[0]?.name||currentBody.name;
+      const spot=(userProfile?.topLoc?.name)||defSpot;
+      // Main line
+      const mainLine=`${timeIco} ${timeName.charAt(0).toUpperCase()+timeName.slice(1)} — ${fish} на ${gear} у ${spot}.`;
+      // Pressure line
+      const pLine=pDir>2?`Давление растёт (${p} мм) — мирная рыба активна.`
+                :pDir<-2?`Давление падает (${p} мм) — хищник активизируется.`
+                :`Давление стабильно ${p} мм, вода ${wt>0?"+":""}${wt}°C.`;
+      // Personalized line
+      let personalLine="";
+      if(userProfile&&userProfile.total>=3){
+        const nearBest=Math.abs(nowHour-userProfile.bestHour)<=1&&userProfile.bestHour>0;
+        if(nearBest){
+          personalLine=`По вашей статистике это ваш лучший час для поклёвок!`;
+        } else if(userProfile.topFish){
+          const bh=userProfile.bestHour;
+          const hoursLeft=((bh-nowHour)+24)%24;
+          if(hoursLeft<=8&&hoursLeft>1) personalLine=`Ваш лучший час через ${hoursLeft}ч (${bh}:00).`;
+          else personalLine=`Вы чаще ловите ${userProfile.topFish.name}${userProfile.topGear?` на ${userProfile.topGear.name}`:""}${userProfile.topLoc?` у ${userProfile.topLoc.name}`:""}.`;
+        }
+      }
+      // Water / season tip
+      let extraTip="";
+      if(wt>=24) extraTip=`Вода ${wt}°C — ищите глубину от 3м.`;
+      else if(wt<=8) extraTip=`Вода холодная ${wt}°C — медленная проводка.`;
+      else if(wind>7) extraTip=`Ветер ${wind} м/с — держитесь у укрытых берегов.`;
+      else if(month>=3&&month<=4) extraTip="Нерест — щука и окунь на мелководье.";
+      else if(month>=9&&month<=10) extraTip="Осенний жор — лучший сезон для трофея!";
+      // Nearby catch
+      let nearbyLine="";
+      if(nearbyCatches.length>0){
+        const nc=nearbyCatches[0];
+        const mins=Math.round((Date.now()-(nc.createdAt?.toMillis?.())||0)/60000);
+        const t=mins<60?`${mins} мин`:`${Math.floor(mins/60)}ч`;
+        const dist=userLat?Math.round(haversine(userLat,userLon,nc.lat,nc.lng||nc.lon)):null;
+        nearbyLine=`⚡ ${nc.author||"Рыбак"} поймал ${nc.fish||"рыбу"} ${nc.weight?nc.weight+" кг ":""}${dist?`в ${dist} км `:""} — ${t} назад!`;
+      }
+      return [moon.ico,mainLine,pLine,personalLine,extraTip,nearbyLine].filter(Boolean).join(" ");
+    },[weather,userProfile,nowHour,month,nearestSpots,currentBody,nearbyCatches,userLat,userLon]);
+
     // Recent community catches
     const [recentCatches, setRecentCatches] = useState([]);
     useEffect(()=>{
@@ -1104,8 +1168,9 @@
         .catch(()=>{});
     },[]);
 
-    // User quick stats (total catches, best catch, this month)
+    // User quick stats + profile for AI advice
     const [quickStats, setQuickStats] = useState(null);
+    const [userProfile, setUserProfile] = useState(null);
     useEffect(()=>{
       if(!user?.uid) return;
       db.collection("catches").doc(user.uid).collection("records")
@@ -1114,9 +1179,28 @@
           const recs=snap.docs.map(d=>d.data());
           const total=recs.length;
           const best=recs.reduce((b,r)=>((r.weightGrams||0)>(b||0)?r.weightGrams:b),0);
-          const now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1);
+          const now2=new Date(), ms=new Date(now2.getFullYear(),now2.getMonth(),1);
           const thisMonth=recs.filter(r=>{const d=r.createdAt?.toDate?.();return d&&d>=ms;}).length;
           setQuickStats({total,bestKg:best?+(best/1000).toFixed(2):null,thisMonth});
+          if(total>=3){
+            const fc={},gc={},lc={},hc=Array(24).fill(0);
+            recs.forEach(r=>{
+              if(r.fishType) fc[r.fishType]=(fc[r.fishType]||0)+1;
+              if(r.gearType) gc[r.gearType]=(gc[r.gearType]||0)+1;
+              if(r.locationName) lc[r.locationName]=(lc[r.locationName]||0)+1;
+              const d=r.createdAt?.toDate?.(); if(d) hc[d.getHours()]++;
+            });
+            const tf=Object.entries(fc).sort((a,b)=>b[1]-a[1])[0];
+            const tg=Object.entries(gc).sort((a,b)=>b[1]-a[1])[0];
+            const tl=Object.entries(lc).sort((a,b)=>b[1]-a[1])[0];
+            setUserProfile({
+              topFish:tf?{type:tf[0],name:FISH_TYPES.find(f=>f.id===tf[0])?.name||tf[0]}:null,
+              topGear:tg?{name:tg[0]}:null,
+              topLoc:tl?{name:tl[0]}:null,
+              bestHour:hc.indexOf(Math.max(...hc)),
+              total,
+            });
+          }
         }).catch(()=>{});
     },[user?.uid]);
 
@@ -1173,17 +1257,8 @@
           </div>
           <div style={{background:"rgba(0,0,0,.3)",borderRadius:14,padding:"12px 14px",borderLeft:`3px solid ${C.accent}`}}>
             <div style={{fontSize:10,color:C.accent,letterSpacing:2,fontWeight:700,marginBottom:5}}>ИИ-СОВЕТ ЕГЕРЯ</div>
-            <div style={{fontSize:13,color:"rgba(232,244,240,.85)",lineHeight:1.6}}>
-              {weather ? (()=>{
-                const sc = calcBiteScore(weather.pressure, month);
-                const moon = moonPhase();
-                const hr = new Date().getHours();
-                const spot = nearestSpots[0]?.name || "Вторую дамбу";
-                const timeHint = hr>=4&&hr<=8?"Сейчас пиковые часы":hr>=17&&hr<=20?"Вечерний выход рыбы":hr>=21||hr<=3?"Ночь — время сома":null;
-                if(sc>=8) return `${moon.ico} Клёв отличный! Давление ${weather.pressure} мм, вода +${weather.waterTemp}°C у ${currentBody.name}.${timeHint?" "+timeHint+"!":" Фидер на"} ${spot} — лещ и сазан берут.`;
-                if(sc>=6) return `${moon.ico} Клёв хороший. Давление ${weather.pressure} мм у ${currentBody.name}, вода +${weather.waterTemp}°C. Ближайшая точка: ${spot}.`;
-                return `${moon.ico} Клёв слабый — давление ${weather.pressure} мм. Хищник активнее: спиннинг у ${currentBody.name} на ${spot}.`;
-              })() : "Загружаю актуальный прогноз..."}
+            <div style={{fontSize:13,color:"rgba(232,244,240,.85)",lineHeight:1.7}}>
+              {egerAdvice}
             </div>
           </div>
         </div>
