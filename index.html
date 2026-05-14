@@ -1244,6 +1244,7 @@
               <div style={{fontSize:12,color:C.muted,marginTop:2,display:"flex",alignItems:"center",gap:4}}>
                 {userLat?"📍":"🗺"}
                 <span key={currentBody.name} style={{animation:"textSwap 30s ease",display:"inline-block",color:C.accent,fontWeight:700}}>{currentBody.name}</span>
+                {userLat&&(()=>{const c=getNearestCity(userLat,userLon);return c?<span style={{color:C.dimmer}}> · {c.name}</span>:null;})()}
                 <span>· {weather?"обновлено "+weather.updated:"загрузка..."}</span>
               </div>
             </div>
@@ -1341,31 +1342,61 @@
             })}
           </div>
         )}
-        <div style={{animation:"fadeUp .7s ease"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{fontSize:14,fontWeight:700,color:C.text}}>Горячие точки</span>
-            <span onClick={()=>setTab("map")} style={{fontSize:12,color:C.accent,display:"flex",alignItems:"center",gap:2,cursor:"pointer"}}>
-              На карте <ChevronRight size={13}/>
-            </span>
-          </div>
-          {nearestSpots.map((s,i)=>{
-            const distKm = userLat&&userLon ? Math.round(haversine(userLat,userLon,s.lat,s.lon)) : null;
-            const scoreVal = distKm===null ? 8-i : distKm<5?10:distKm<15?9:distKm<40?8:7;
-            return (
-            <a key={i} href={`${ymapsLL(s.lat,s.lon)}`} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
-              <div style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:36,height:36,borderRadius:10,background:C.accentDim,border:`1px solid ${C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center"}}><s.Icon size={16} color={C.accent}/></div>
-                  <div>
-                    <div style={{fontSize:13,fontWeight:600,color:C.text}}>{s.name}</div>
-                    <div style={{fontSize:11,color:C.muted}}>{s.fish}{distKm!==null?` · ${distKm} км`:""}</div>
-                  </div>
-                </div>
-                <div style={{background:C.accentDim,border:`1px solid ${C.borderHi}`,borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,color:C.accent}}>{scoreVal}/10</div>
+        {(()=>{
+          // Объединяем точки и базы, сортируем по расстоянию
+          const allPts = [
+            ...SPOT_LIST.map(s=>({...s,_type:"spot"})),
+            ...FISHING_BASES.map(b=>({name:b.name,fish:b.fish,lat:b.lat,lon:b.lon,_type:"base",_base:b,Icon:Anchor})),
+          ];
+          const sorted = userLat&&userLon
+            ? [...allPts].sort((a,b)=>haversine(userLat,userLon,a.lat,a.lon)-haversine(userLat,userLon,b.lat,b.lon))
+            : allPts;
+          const topPts = sorted.slice(0,5);
+          const bs = biteScore||8;
+          return (
+          <div style={{animation:"fadeUp .7s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div>
+                <span style={{fontSize:14,fontWeight:700,color:C.text}}>Горячие точки</span>
+                {userLat&&<span style={{fontSize:10,color:C.dimmer,marginLeft:6}}>по геолокации</span>}
               </div>
-            </a>
-            );
-          })}
+              <span onClick={()=>setTab("map")} style={{fontSize:12,color:C.accent,display:"flex",alignItems:"center",gap:2,cursor:"pointer"}}>
+                На карте <ChevronRight size={13}/>
+              </span>
+            </div>
+            {topPts.map((s,i)=>{
+              const distKm = userLat&&userLon ? Math.round(haversine(userLat,userLon,s.lat,s.lon)) : null;
+              const isBase = s._type==="base";
+              // Динамический балл: базовый клёв ± дистанция
+              const distBonus = distKm===null?0:distKm<5?2:distKm<15?1:distKm<40?0:-1;
+              const scoreVal = Math.max(1,Math.min(10,bs+distBonus-(i*0.3|0)));
+              const scoreColor = scoreVal>=8?C.accent:scoreVal>=6?C.gold:"#ef4444";
+              return (
+              <a key={i} href={ymapsLL(s.lat,s.lon)} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
+                <div style={{...glass(),padding:"11px 13px",marginBottom:7,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",border:`1px solid ${isBase?"rgba(34,211,238,.25)":C.border}`,background:isBase?"rgba(34,211,238,.04)":""}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:36,height:36,borderRadius:10,background:isBase?"rgba(34,211,238,.12)":C.accentDim,border:`1px solid ${isBase?"rgba(34,211,238,.3)":C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      <s.Icon size={16} color={isBase?C.cyan:C.accent}/>
+                    </div>
+                    <div style={{minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:5}}>
+                        <div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>{s.name}</div>
+                        {isBase&&<span style={{fontSize:9,fontWeight:700,color:C.cyan,background:"rgba(34,211,238,.12)",border:"1px solid rgba(34,211,238,.25)",borderRadius:5,padding:"1px 5px",flexShrink:0}}>БАЗА</span>}
+                      </div>
+                      <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        {s.fish.split(",").slice(0,3).join(", ")}{distKm!==null?` · ${distKm} км`:""}
+                        {isBase&&s._base?.price?` · ${s._base.price}`:""}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{flexShrink:0,background:`${scoreColor}18`,border:`1px solid ${scoreColor}55`,borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:800,color:scoreColor}}>{scoreVal}/10</div>
+                </div>
+              </a>
+              );
+            })}
+          </div>
+          );
+        })()}
           <div onClick={onGoChat} style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.18),rgba(34,211,238,.10))",padding:"14px 18px",marginTop:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 14px ${C.accentGlow}`}}><Fish size={19} color="#07111e"/></div>
@@ -1403,7 +1434,7 @@
                   }
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title||r.fish||"Улов"}</div>
-                    <div style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.author||"Рыбак"}{r.location?` · ${r.location}`:""}</div>
+                    <div style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.displayName||r.author||"Рыбак"}{r.location?` · ${r.location}`:""}</div>
                   </div>
                   {timeStr&&<div style={{fontSize:10,color:C.dimmer,flexShrink:0}}>{timeStr} назад</div>}
                 </div>
@@ -3424,6 +3455,49 @@
     {name:"Чалтырское озеро",              fish:"Карась, Карп, Толстолобик", lat:47.2512, lon:39.5234, Icon:Waves},
   ];
 
+  /* ── Населённые пункты для геокодирования ── */
+  const GEO_CITIES = [
+    {name:"Ростов-на-Дону",   lat:47.2357, lon:39.7015},
+    {name:"Аксай",            lat:47.2681, lon:39.8699},
+    {name:"Батайск",          lat:47.1456, lon:39.7456},
+    {name:"Азов",             lat:47.1023, lon:39.4123},
+    {name:"Таганрог",         lat:47.2090, lon:38.9360},
+    {name:"Новочеркасск",     lat:47.4181, lon:40.0956},
+    {name:"Новошахтинск",     lat:47.7576, lon:39.9320},
+    {name:"Шахты",            lat:47.7089, lon:40.2158},
+    {name:"Волгодонск",       lat:47.5083, lon:42.1583},
+    {name:"Семикаракорск",    lat:47.5177, lon:40.8069},
+    {name:"Константиновск",   lat:47.5789, lon:41.0989},
+    {name:"Багаевская",       lat:47.3197, lon:40.4012},
+    {name:"Старочеркасская",  lat:47.2389, lon:40.0153},
+    {name:"Раздорская",       lat:47.5632, lon:40.6735},
+    {name:"Цимлянск",         lat:47.6421, lon:42.0954},
+    {name:"Пролетарск",       lat:46.7012, lon:41.7234},
+    {name:"Рогожкино",        lat:47.1765, lon:39.3435},
+    {name:"Кагальник",        lat:47.0312, lon:39.5012},
+    {name:"Гниловская",       lat:47.1734, lon:39.7012},
+  ];
+  function getNearestCity(lat, lon) {
+    if (!lat || !lon) return null;
+    return GEO_CITIES.sort((a,b)=>haversine(lat,lon,a.lat,a.lon)-haversine(lat,lon,b.lat,b.lon))[0];
+  }
+
+  /* ── Рыболовные базы и платная рыбалка ── */
+  const FISHING_BASES = [
+    {id:"b1",  name:"Рыбацкая Слобода",      addr:"Аксайский р-н, хут. Островской",  city:"Аксай",          lat:47.2612, lon:39.9234, phone:"+7 (918) 555-01-01", price:"400–800 ₽/сут", fish:"Карп, Сазан, Амур, Толстолобик", type:"paid",  amenities:["домики","лодки","беседки","мангал"], rating:4.6},
+    {id:"b2",  name:"База Дон-Рыбак",        addr:"Ростов-на-Дону, ул. Береговая",   city:"Ростов-на-Дону", lat:47.2108, lon:39.7043, phone:"+7 (918) 555-02-02", price:"300–600 ₽/сут", fish:"Лещ, Судак, Сом, Тарань",        type:"paid",  amenities:["лодки","парковка","туалет"],          rating:4.2},
+    {id:"b3",  name:"Озёрки (платная)",       addr:"Батайский р-н, п. Озёрки",        city:"Батайск",        lat:47.1234, lon:39.6789, phone:"+7 (918) 555-03-03", price:"500 ₽/день",    fish:"Карп, Карась, Амур",             type:"paid",  amenities:["беседки","мангал","парковка"],         rating:4.4},
+    {id:"b4",  name:"База Раздоры",           addr:"ст. Раздорская, ул. Донская",     city:"Раздорская",     lat:47.5701, lon:40.6812, phone:"+7 (918) 555-04-04", price:"350–700 ₽/сут", fish:"Лещ, Сазан, Чехонь, Судак",      type:"base",  amenities:["домики","лодки","баня","мангал"],     rating:4.7},
+    {id:"b5",  name:"Цимлянская база",        addr:"г. Цимлянск, ул. Рыбацкая",       city:"Цимлянск",       lat:47.6534, lon:42.1012, phone:"+7 (918) 555-05-05", price:"500–900 ₽/сут", fish:"Судак, Берш, Лещ, Жерех",        type:"base",  amenities:["домики","лодки","лодочный мотор","катер"], rating:4.8},
+    {id:"b6",  name:"Тихая заводь",           addr:"Азовский р-н, с. Кагальник",      city:"Кагальник",      lat:47.0312, lon:39.5012, phone:"+7 (918) 555-06-06", price:"400 ₽/день",    fish:"Тарань, Лещ, Карась, Карп",      type:"paid",  amenities:["беседки","туалет","парковка"],         rating:4.3},
+    {id:"b7",  name:"Донская рыболовная база",addr:"Аксайский р-н, с. Старочеркасская",city:"Старочеркасская",lat:47.2456, lon:40.0234, phone:"+7 (918) 555-07-07", price:"600–1200 ₽/сут",fish:"Сазан, Лещ, Судак, Щука",        type:"base",  amenities:["домики","лодки","баня","кухня","мангал"], rating:4.9},
+    {id:"b8",  name:"Рыболовный лагерь Дон", addr:"Семикаракорский р-н",             city:"Семикаракорск",  lat:47.5101, lon:40.8234, phone:"+7 (918) 555-08-08", price:"300–500 ₽/сут", fish:"Лещ, Карп, Сазан, Карась",       type:"base",  amenities:["домики","лодки","парковка"],           rating:4.5},
+    {id:"b9",  name:"База Маныч",             addr:"Пролетарский р-н, с. Маныч",      city:"Пролетарск",     lat:46.6890, lon:41.7456, phone:"+7 (918) 555-09-09", price:"400–800 ₽/сут", fish:"Карп, Амур, Толстолобик, Судак",  type:"base",  amenities:["домики","лодки","баня"],               rating:4.6},
+    {id:"b10", name:"Рыбацкий хутор",         addr:"Аксайский р-н, хут. Пухляковский",city:"Аксай",         lat:47.2834, lon:39.9512, phone:"+7 (918) 555-10-10", price:"350 ₽/день",    fish:"Карп, Сазан, Щука, Карась",      type:"paid",  amenities:["беседки","мангал","туалет","навес"],   rating:4.4},
+    {id:"b11", name:"Форелевое хозяйство",    addr:"Шолоховский р-н, ст. Вёшенская", city:"Вёшенская",      lat:49.6234, lon:41.7234, phone:"+7 (918) 555-11-11", price:"600 ₽/день",    fish:"Форель (платная), Карп",         type:"paid",  amenities:["беседки","прокат снастей","кафе"],     rating:4.7},
+    {id:"b12", name:"База Гниловская",        addr:"Ростов-на-Дону, пос. Гниловской", city:"Ростов-на-Дону", lat:47.1634, lon:39.6912, phone:"+7 (918) 555-12-12", price:"200–400 ₽/сут", fish:"Тарань, Лещ, Чехонь, Судак",     type:"base",  amenities:["лодки","причал","парковка"],           rating:4.1},
+  ];
+
   /* ── SHOPS MAP ── */
   const SHOPS = [
     // ── Ростов-на-Дону ──
@@ -4549,19 +4623,102 @@
   }
 
   /* ── MapCombinedScreen — точки + магазины ── */
+  function BasesScreen({ userLat, userLon }) {
+    const [selected, setSelected] = useState(null);
+    const [search, setSearch] = useState("");
+    const [typeFilter, setTypeFilter] = useState("all");
+
+    const baseDist = b => userLat&&userLon ? haversine(userLat,userLon,b.lat,b.lon) : null;
+
+    const filtered = FISHING_BASES
+      .filter(b=>{
+        if(typeFilter!=="all"&&b.type!==typeFilter) return false;
+        if(search){const q=search.toLowerCase();return b.name.toLowerCase().includes(q)||b.fish.toLowerCase().includes(q)||b.city.toLowerCase().includes(q);}
+        return true;
+      })
+      .sort((a,b)=>{const da=baseDist(a),db=baseDist(b);return(da!==null&&db!==null)?da-db:0;});
+
+    const centerLon = selected?selected.lon:(userLon||39.75);
+    const centerLat = selected?selected.lat:(userLat||47.23);
+    const zoom = selected?14:8;
+    const pts = FISHING_BASES.map(b=>`${b.lon},${b.lat},${selected?.id===b.id?"pm2gnl1":"pm2blm1"}`).join("~");
+    const mapSrc = `https://yandex.ru/map-widget/v1/?ll=${centerLon},${centerLat}&z=${zoom}&pt=${pts}&l=map`;
+
+    return (
+      <div style={{height:"100%",display:"flex",flexDirection:"column",background:C.bg,overflow:"hidden"}}>
+        <div style={{padding:"8px 12px",background:"rgba(7,17,30,.97)",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:C.surfaceHi,borderRadius:12,padding:"9px 12px",border:`1px solid ${C.border}`,marginBottom:6}}>
+            <span style={{fontSize:15}}>🏕</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Поиск баз и платной рыбалки..." style={{flex:1,background:"none",border:"none",outline:"none",color:C.text,fontSize:13}}/>
+            {search&&<button onClick={()=>setSearch("")} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18,lineHeight:1}}>×</button>}
+          </div>
+          <div style={{display:"flex",gap:5}}>
+            {[{v:"all",l:"Все"},{v:"base",l:"Базы"},{v:"paid",l:"Платная"}].map(t=>(
+              <button key={t.v} onClick={()=>setTypeFilter(t.v)} style={{padding:"3px 12px",borderRadius:10,background:typeFilter===t.v?C.accentDim:C.surface,border:`1px solid ${typeFilter===t.v?C.accent:C.border}`,color:typeFilter===t.v?C.accent:C.muted,fontSize:11,fontWeight:typeFilter===t.v?700:400,cursor:"pointer"}}>{t.l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{flex:"0 0 42%",position:"relative",background:"#0a192f"}}>
+          <iframe key={`${centerLon}_${centerLat}_${zoom}`} src={mapSrc} style={{width:"100%",height:"100%",display:"block",border:"none"}} frameBorder="0" allowFullScreen loading="lazy"/>
+          {selected&&(
+            <div style={{position:"absolute",bottom:8,left:8,right:8,background:"rgba(7,17,30,.93)",backdropFilter:"blur(12px)",border:`1px solid ${C.borderHi}`,borderRadius:12,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{selected.name}</div>
+                <div style={{fontSize:10,color:C.cyan}}>{selected.price}</div>
+              </div>
+              <a href={`tel:${selected.phone}`} style={{padding:"5px 10px",borderRadius:8,background:"rgba(34,211,238,.12)",border:"1px solid rgba(34,211,238,.3)",color:C.cyan,fontSize:11,fontWeight:700,textDecoration:"none",flexShrink:0}}>Звонить</a>
+              <a href={ymapsLL(selected.lat,selected.lon)} target="_blank" rel="noreferrer" style={{padding:"5px 12px",borderRadius:8,background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:11,fontWeight:800,textDecoration:"none",flexShrink:0}}>Маршрут</a>
+              <button onClick={()=>setSelected(null)} style={{width:26,height:26,borderRadius:"50%",border:`1px solid ${C.border}`,background:C.surface,color:C.muted,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>✕</button>
+            </div>
+          )}
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"6px 10px"}}>
+          {userLat&&!search&&<div style={{fontSize:10,color:C.muted,padding:"4px 4px 6px",textAlign:"center"}}>📍 По расстоянию от вас</div>}
+          {filtered.map(b=>{
+            const dist=baseDist(b); const isSel=selected?.id===b.id;
+            const distStr=dist!==null?`${Math.round(dist)} км`:"";
+            return (
+              <div key={b.id} onClick={()=>setSelected(isSel?null:b)}
+                style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",marginBottom:5,borderRadius:12,cursor:"pointer",
+                  background:isSel?"rgba(34,211,238,.1)":"rgba(255,255,255,.03)",
+                  border:`1px solid ${isSel?"rgba(34,211,238,.4)":C.border}`,transition:"all .2s"}}>
+                <div style={{width:40,height:40,borderRadius:10,background:"rgba(34,211,238,.1)",border:`1px solid rgba(34,211,238,.25)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:20}}>
+                  {b.type==="base"?"🏕":"🎣"}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.name}</div>
+                    <span style={{fontSize:9,fontWeight:700,color:b.type==="base"?C.cyan:C.gold,background:b.type==="base"?"rgba(34,211,238,.12)":"rgba(245,158,11,.12)",border:`1px solid ${b.type==="base"?"rgba(34,211,238,.25)":"rgba(245,158,11,.25)"}`,borderRadius:5,padding:"1px 5px",flexShrink:0}}>{b.type==="base"?"БАЗА":"ПЛАТНАЯ"}</span>
+                  </div>
+                  <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{b.fish}</div>
+                  <div style={{display:"flex",gap:8,marginTop:2}}>
+                    <span style={{fontSize:10,color:C.accent,fontWeight:700}}>{b.price}</span>
+                    {distStr&&<span style={{fontSize:10,color:C.dimmer}}>📍{distStr}</span>}
+                    <span style={{fontSize:10,color:C.gold}}>★{b.rating}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   function MapCombinedScreen({ userLat, userLon, user }) {
     const [mapTab, setMapTab] = useState("spots");
     return (
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",flexShrink:0}}>
-          {[{id:"spots",label:"📍 Точки ловли"},{id:"shops",label:"🏪 Магазины"}].map(t=>(
-            <button key={t.id} onClick={()=>setMapTab(t.id)} style={{flex:1,padding:"11px 0",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:700,color:mapTab===t.id?C.accent:C.muted,borderBottom:mapTab===t.id?`2px solid ${C.accent}`:"2px solid transparent",transition:"all .2s"}}>
+          {[{id:"spots",label:"📍 Точки"},{id:"bases",label:"🏕 Базы"},{id:"shops",label:"🏪 Магазины"}].map(t=>(
+            <button key={t.id} onClick={()=>setMapTab(t.id)} style={{flex:1,padding:"11px 0",border:"none",background:"none",cursor:"pointer",fontSize:12,fontWeight:700,color:mapTab===t.id?C.accent:C.muted,borderBottom:mapTab===t.id?`2px solid ${C.accent}`:"2px solid transparent",transition:"all .2s"}}>
               {t.label}
             </button>
           ))}
         </div>
         <div style={{flex:1,overflow:"hidden"}}>
           {mapTab==="spots"&&<MapScreen userLat={userLat} userLon={userLon} user={user}/>}
+          {mapTab==="bases"&&<BasesScreen userLat={userLat} userLon={userLon}/>}
           {mapTab==="shops"&&<ShopsScreen userLat={userLat} userLon={userLon}/>}
         </div>
       </div>
