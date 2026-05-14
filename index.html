@@ -1166,33 +1166,102 @@
     );
   }
 
-  /* ── MAP ── */
-  function MapScreen() {
-    const areas=[
-      {name:"Дон — Аксайский р-н",coords:"47.2667,39.8667"},
-      {name:"Мёртвый Донец",coords:"47.1833,39.7333"},
-      {name:"Левобережные заводи",coords:"47.2200,39.7800"},
-      {name:"Цимлянское водохранилище",coords:"47.6333,42.0833"},
-      {name:"Азовское море (Таганрог)",coords:"47.2167,38.9167"},
-      {name:"Манычское водохранилище",coords:"46.8833,41.5500"},
-    ];
+  /* ── MAP / SPOTS ── */
+  function MapScreen({ userLat, userLon }) {
+    const [selIdx, setSelIdx] = useState(null);
+    const [filter, setFilter] = useState("");
+
+    const sorted = useMemo(()=>{
+      if(userLat && userLon)
+        return [...SPOT_LIST].sort((a,b)=>haversine(userLat,userLon,a.lat,a.lon)-haversine(userLat,userLon,b.lat,b.lon));
+      return SPOT_LIST;
+    },[userLat,userLon]);
+
+    const filtered = filter
+      ? sorted.filter(s=>s.name.toLowerCase().includes(filter.toLowerCase())||s.fish.toLowerCase().includes(filter.toLowerCase()))
+      : sorted;
+
+    const sel = selIdx !== null ? SPOT_LIST[selIdx] : null;
+    const centerLon = sel ? sel.lon : 39.95;
+    const centerLat = sel ? sel.lat : 47.24;
+    const zoom = sel ? 13 : 8;
+
+    const pts = SPOT_LIST.map((s,i)=>
+      `${s.lon},${s.lat},${i===selIdx?"pm2gnl1":"pm2rdl1"}`
+    ).join("~");
+
+    const mapSrc = `https://yandex.ru/map-widget/v1/?ll=${centerLon},${centerLat}&z=${zoom}&pt=${pts}&l=map`;
+
     return (
-      <div style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,gap:16}}>
-        <div style={{...glass(`0 0 0 1px ${C.borderHi}`),padding:28,textAlign:"center",maxWidth:300}}>
-          <MapPin size={48} color={C.accent} style={{marginBottom:12,filter:`drop-shadow(0 0 14px ${C.accent})`,display:"block",margin:"0 auto 12px"}}/>
-          <div style={{fontSize:17,fontWeight:800,color:C.text,marginBottom:6}}>Карта водоёмов</div>
-          <div style={{fontSize:12,color:C.muted,lineHeight:1.7}}>Нажми на водоём — откроется Яндекс Карты с точкой</div>
-        </div>
-        <div style={{...glass(),padding:12,width:"100%",maxWidth:350}}>
-          {areas.map((r,i)=>(
-            <a key={i} href={`${ymaps(r.coords)}`} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 8px",borderBottom:i<areas.length-1?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
-                <MapPin size={14} color={C.accent}/>
-                <span style={{fontSize:13,color:C.text,flex:1}}>{r.name}</span>
-                <ChevronRight size={13} color={C.dimmer}/>
+      <div style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+
+        {/* ── Embedded map ── */}
+        <div style={{flex:"0 0 44%",position:"relative",background:"#0a192f"}}>
+          <iframe
+            key={`${centerLon}_${centerLat}_${zoom}`}
+            src={mapSrc}
+            style={{width:"100%",height:"100%",display:"block",border:"none"}}
+            frameBorder="0"
+            allowFullScreen={true}
+            loading="lazy"
+          />
+          {sel && (
+            <div style={{position:"absolute",bottom:8,left:8,right:8,background:"rgba(7,17,30,.9)",backdropFilter:"blur(12px)",border:`1px solid ${C.borderHi}`,borderRadius:12,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sel.name}</div>
+                <div style={{fontSize:10,color:C.muted}}>{sel.fish}</div>
               </div>
-            </a>
-          ))}
+              <a href={ymapsLL(sel.lat,sel.lon)} target="_blank" rel="noreferrer"
+                style={{padding:"5px 12px",borderRadius:8,background:`linear-gradient(135deg,#1a8a50,${C.accent})`,color:"#07111e",fontSize:11,fontWeight:800,textDecoration:"none",flexShrink:0}}>
+                Маршрут
+              </a>
+              <button onClick={()=>setSelIdx(null)}
+                style={{width:26,height:26,borderRadius:"50%",border:`1px solid ${C.border}`,background:C.surface,color:C.muted,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Search bar ── */}
+        <div style={{padding:"8px 12px",background:"rgba(7,17,30,.95)",borderBottom:`1px solid ${C.border}`}}>
+          <input
+            value={filter} onChange={e=>setFilter(e.target.value)}
+            placeholder={`🔍 Поиск по ${SPOT_LIST.length} точкам...`}
+            style={{width:"100%",boxSizing:"border-box",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:12,padding:"8px 14px",color:C.text,fontSize:13,outline:"none"}}
+          />
+        </div>
+
+        {/* ── Spots list ── */}
+        <div style={{flex:1,overflowY:"auto",padding:"6px 10px"}}>
+          {userLat && !filter && (
+            <div style={{fontSize:10,color:C.muted,padding:"4px 4px 6px",textAlign:"center"}}>
+              📍 По расстоянию от вас
+            </div>
+          )}
+          {filtered.map((s,i)=>{
+            const realIdx = SPOT_LIST.indexOf(s);
+            const dist = userLat&&userLon ? Math.round(haversine(userLat,userLon,s.lat,s.lon)) : null;
+            const isSel = selIdx===realIdx;
+            return (
+              <div key={realIdx} onClick={()=>setSelIdx(isSel?null:realIdx)}
+                style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",marginBottom:5,borderRadius:12,cursor:"pointer",
+                  background:isSel?`rgba(46,204,113,.1)`:"rgba(255,255,255,.03)",
+                  border:`1px solid ${isSel?C.accent:C.border}`,transition:"all .15s"}}>
+                <div style={{width:30,height:30,borderRadius:8,background:isSel?C.accent:C.accentDim,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <s.Icon size={14} color={isSel?"#07111e":C.accent}/>
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.name}</div>
+                  <div style={{fontSize:10,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.fish}{dist!==null?` · ${dist} км`:""}</div>
+                </div>
+                <ChevronRight size={12} color={isSel?C.accent:C.dimmer}/>
+              </div>
+            );
+          })}
+          {filtered.length===0 && (
+            <div style={{textAlign:"center",padding:24,color:C.muted,fontSize:13}}>Ничего не найдено</div>
+          )}
         </div>
       </div>
     );
@@ -2435,8 +2504,9 @@
     const NAV=[
       {id:"home",     label:"Главная", Icon:Home},
       {id:"chat",     label:"Егерь",   Icon:Fish},
+      {id:"spots",    label:"Точки",   Icon:MapPin},
       {id:"community",label:"Чат",     Icon:MessageCircle},
-      {id:"map",      label:"Магазины",Icon:MapPin},
+      {id:"map",      label:"Магазины",Icon:Anchor},
       {id:"news",     label:"Новости", Icon:Newspaper},
       {id:"profile",  label:"Профиль", Icon:User},
     ];
@@ -2476,6 +2546,7 @@
           {tab==="home"      && <HomeScreen onGoChat={()=>goTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={goTab} userLat={userLat} userLon={userLon}/>}
           {tab==="chat"      && <ChatScreen weather={weather} userLat={userLat} userLon={userLon}/>}
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
+          {tab==="spots"     && <MapScreen userLat={userLat} userLon={userLon}/>}
           {tab==="map"       && <ShopsScreen userLat={userLat} userLon={userLon}/>}
           {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
           {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)}/>}
