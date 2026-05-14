@@ -1686,6 +1686,29 @@
           </div>
         )}
 
+        {/* Hourly wind chart */}
+        {hourlySlice.length>0&&(
+          <div style={{...glass(),marginBottom:10,padding:"12px 14px"}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>💨 Ветер по часам (м/с)</div>
+            {(()=>{
+              const maxW=Math.max(...hourlySlice.map(h=>h.wind),1);
+              const wColor=w=>w<=3?"#2ecc71":w<=6?"#f59e0b":w<=10?"#f97316":"#ef4444";
+              return(
+                <div style={{display:"flex",gap:3,alignItems:"flex-end",height:56}}>
+                  {hourlySlice.map((h,i)=>(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{fontSize:8,color:C.dimmer,marginBottom:1}}>{h.wind>0?h.wind:""}</div>
+                      <div style={{width:"100%",borderRadius:"3px 3px 0 0",background:wColor(h.wind),height:Math.max(3,Math.round(h.wind/maxW*40)),transition:"height .3s"}}/>
+                      <div style={{fontSize:8,color:C.dimmer}}>{i===0?"":h.time.slice(0,2)}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <div style={{fontSize:10,color:C.dimmer,marginTop:4,textAlign:"center"}}>🟢 ≤3 · 🟡 4–6 · 🟠 7–10 · 🔴 >10 м/с</div>
+          </div>
+        )}
+
         {/* Solunar fishing periods */}
         {(()=>{
           const mp=moonPhase();
@@ -3018,7 +3041,11 @@
           recs.forEach(r=>{ const n=r.fishName||r.fishType; if(n) sc[n]=(sc[n]||0)+1; });
           const top5species=Object.entries(sc).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,c])=>({name:n,count:c}));
           const maxSpecies=Math.max(...top5species.map(s=>s.count),1);
-          setCatchStats({total,totalW,best,favGear,uniqueDays,monthly,top3locs,top5species,maxSpecies});
+          // Time-of-day distribution (group into 4h buckets: night/morning/day/evening)
+          const tod=Array(24).fill(0);
+          recs.forEach(r=>{const d=r.createdAt?.toDate?.();if(d) tod[d.getHours()]++;});
+          const maxTod=Math.max(...tod,1);
+          setCatchStats({total,totalW,best,favGear,uniqueDays,monthly,top3locs,top5species,maxSpecies,tod,maxTod});
           setStatsLoading(false);
         }).catch(()=>setStatsLoading(false));
       db.collection("users").doc(user.uid).collection("badges").get()
@@ -3109,6 +3136,32 @@
                 ))}
               </div>
             );})()}
+          </div>
+        )}
+        {/* Time-of-day catch heatmap */}
+        {catchStats?.tod&&catchStats.tod.some(v=>v>0)&&(
+          <div style={{...glass(),padding:"12px 14px",marginBottom:14}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:10,fontWeight:700,letterSpacing:.5}}>АКТИВНОСТЬ ПО ВРЕМЕНИ СУТОК</div>
+            <div style={{display:"flex",gap:2,alignItems:"flex-end",height:44}}>
+              {catchStats.tod.map((v,h)=>{
+                const pct=Math.round(v/catchStats.maxTod*40);
+                const col=h>=5&&h<10?"#f59e0b":h>=10&&h<18?C.accent:h>=18&&h<22?"#f97316":"rgba(34,211,238,.7)";
+                return(
+                  <div key={h} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
+                    <div style={{width:"100%",borderRadius:"2px 2px 0 0",background:v>0?col:"rgba(255,255,255,.05)",height:Math.max(2,pct)}}/>
+                    <div style={{fontSize:7,color:C.dimmer}}>{h%6===0?`${h}ч`:""}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap"}}>
+              {[{col:"rgba(34,211,238,.7)",l:"Ночь 22–5"},{"col":"#f59e0b",l:"Утро 5–10"},{col:C.accent,l:"День 10–18"},{col:"#f97316",l:"Вечер 18–22"}].map(({col,l})=>(
+                <span key={l} style={{fontSize:9,color:C.dimmer,display:"flex",alignItems:"center",gap:3}}>
+                  <span style={{width:8,height:8,borderRadius:2,background:col,display:"inline-block"}}/>
+                  {l}
+                </span>
+              ))}
+            </div>
           </div>
         )}
         {/* Top-3 locations */}
@@ -4125,12 +4178,12 @@
     const exportCSV = useCallback(async()=>{
       const snap = await db.collection("catches").doc(user.uid).collection("records").orderBy("createdAt","desc").get();
       const rows = snap.docs.map(d=>d.data());
-      const header = ["Дата","Рыба","Вес (г)","Длина (см)","Место","Снасть","Наживка","Заметки","Публично"];
+      const header = ["Дата","Рыба","Вес (г)","Длина (см)","Глубина (м)","Дистанция (м)","Место","Снасть","Наживка","Заметки","Публично"];
       const escape = v => `"${String(v||"").replace(/"/g,'""')}"`;
       const csv = [header.map(escape).join(","), ...rows.map(r=>[
         r.createdAt?.toDate?.().toLocaleString("ru-RU")||"",
         FISH_TYPES.find(f=>f.id===r.fishType)?.name||r.fishType||"",
-        r.weightGrams||0, r.lengthCm||"", r.locationName||"",
+        r.weightGrams||0, r.lengthCm||"", r.depthM||"", r.distanceM||"", r.locationName||"",
         r.gearType||"", r.bait||"", r.notes||"", r.isPublic?"Да":"Нет"
       ].map(escape).join(","))].join("\n");
       const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8;"});
