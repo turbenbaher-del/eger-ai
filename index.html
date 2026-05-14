@@ -2712,10 +2712,52 @@
   function ProfileScreen({ user, onLogin, onNav }) {
     if (!user) return <RequireAuth user={user} onLogin={onLogin}><div/></RequireAuth>;
     const [profileUsername, setProfileUsername] = useState("");
+    const [editingUsername, setEditingUsername] = useState(false);
+    const [usernameInput, setUsernameInput] = useState("");
     const [catchStats, setCatchStats] = useState(null);
     const [badges, setBadges] = useState([]);
     const [statsLoading, setStatsLoading] = useState(true);
     const [notifOn, setNotifOn] = useState(()=>!!localStorage.getItem("fcm_token"));
+    const [userRank, setUserRank] = useState(null);
+
+    const saveUsername = async () => {
+      const u = usernameInput.trim().toLowerCase().replace(/[^a-z0-9_]/g,"").slice(0,20);
+      if (!u) return;
+      await db.collection("users").doc(user.uid).set({username:u},{merge:true});
+      setProfileUsername(u); setEditingUsername(false);
+    };
+
+    const shareProfile = async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width=1080; canvas.height=540;
+      const ctx = canvas.getContext("2d");
+      const bg = ctx.createLinearGradient(0,0,1080,540);
+      bg.addColorStop(0,"#07111e"); bg.addColorStop(1,"#0a192f");
+      ctx.fillStyle=bg; ctx.fillRect(0,0,1080,540);
+      const glow = ctx.createRadialGradient(200,150,0,200,150,400);
+      glow.addColorStop(0,"rgba(46,204,113,0.22)"); glow.addColorStop(1,"transparent");
+      ctx.fillStyle=glow; ctx.fillRect(0,0,1080,540);
+      ctx.fillStyle="#2ecc71"; ctx.font="bold 32px sans-serif"; ctx.fillText("ЕГЕРЬ ИИ",50,60);
+      ctx.fillStyle="rgba(255,255,255,.35)"; ctx.font="22px sans-serif"; ctx.fillText("eger-ai.app",50,92);
+      ctx.fillStyle="#fff"; ctx.font="bold 72px sans-serif"; ctx.fillText(user.displayName||"Рыбак",50,200);
+      if(profileUsername){ctx.fillStyle="#2ecc71"; ctx.font="30px sans-serif"; ctx.fillText("@"+profileUsername,50,248);}
+      const stats=[
+        {l:"Уловов",v:catchStats?.total||0},
+        {l:"кг всего",v:catchStats?.totalW?(catchStats.totalW/1000).toFixed(1):"0"},
+        {l:"Рекорд кг",v:catchStats?.best?(catchStats.best.weightGrams/1000).toFixed(1):"—"},
+        {l:"Значков",v:badges.length},
+      ];
+      stats.forEach((s,i)=>{
+        const x=50+i*250;
+        ctx.fillStyle="#2ecc71"; ctx.font="bold 56px sans-serif"; ctx.fillText(String(s.v),x,370);
+        ctx.fillStyle="rgba(255,255,255,.45)"; ctx.font="24px sans-serif"; ctx.fillText(s.l,x,410);
+      });
+      const dataUrl=canvas.toDataURL("image/jpeg",0.92);
+      if(navigator.canShare){
+        try{const blob=await (await fetch(dataUrl)).blob();const file=new File([blob],"profile.jpg",{type:"image/jpeg"});if(navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"Мой профиль рыбака — Егерь ИИ"});return;}}catch(e){}
+      }
+      const a=document.createElement("a"); a.href=dataUrl; a.download="profile.jpg"; a.click();
+    };
 
     const toggleNotif = async () => {
       if (notifOn) {
@@ -2739,6 +2781,9 @@
         if(doc.exists && doc.data().username) setProfileUsername(doc.data().username);
         else setProfileUsername(genUsername(user.displayName||"рыбак"));
       });
+      // Try to get user's rank from leaderboard
+      db.collection("leaderboard").doc("month").collection("rows").doc(user.uid).get()
+        .then(d=>{ if(d.exists) setUserRank(d.data().rank); }).catch(()=>{});
     },[user]);
 
     useEffect(()=>{
@@ -2789,12 +2834,28 @@
 
     return (
       <div style={{padding:"16px 14px",overflowY:"auto",height:"100%"}}>
-        <div style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.12),rgba(59,130,246,.08))",padding:24,textAlign:"center",marginBottom:14}}>
+        <div style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.12),rgba(59,130,246,.08))",padding:24,textAlign:"center",marginBottom:14,position:"relative"}}>
+          <button onClick={shareProfile} style={{position:"absolute",top:14,right:14,background:"rgba(255,255,255,.08)",border:`1px solid ${C.border}`,borderRadius:10,padding:"5px 10px",cursor:"pointer",color:C.muted,fontSize:11,fontWeight:700}}>📤 Поделиться</button>
           <div style={{width:72,height:72,borderRadius:"50%",margin:"0 auto 12px",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 24px ${C.accentGlow}`,fontSize:28,fontWeight:800,color:"#07111e"}}>{(user.displayName||"Р")[0].toUpperCase()}</div>
           <div style={{fontSize:18,fontWeight:800,color:C.text,marginBottom:2}}>{user.displayName||"Рыбак"}</div>
-          {profileUsername&&<div style={{fontSize:13,color:C.accent,fontWeight:700,marginBottom:2}}>@{profileUsername}</div>}
+          {editingUsername ? (
+            <div style={{display:"flex",gap:6,justifyContent:"center",alignItems:"center",marginBottom:6}}>
+              <span style={{color:C.accent,fontWeight:700,fontSize:13}}>@</span>
+              <input value={usernameInput} onChange={e=>setUsernameInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveUsername()}
+                placeholder="имя_пользователя" autoFocus maxLength={20}
+                style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,padding:"4px 8px",color:C.text,fontSize:13,width:140,outline:"none"}}/>
+              <button onClick={saveUsername} style={{background:C.accentDim,border:`1px solid ${C.accent}`,borderRadius:8,padding:"4px 8px",color:C.accent,fontSize:12,cursor:"pointer",fontWeight:700}}>✓</button>
+              <button onClick={()=>setEditingUsername(false)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"4px 8px",color:C.muted,fontSize:12,cursor:"pointer"}}>✕</button>
+            </div>
+          ) : (
+            <div onClick={()=>{setEditingUsername(true);setUsernameInput(profileUsername||"");}} style={{cursor:"pointer",marginBottom:4}}>
+              <span style={{fontSize:13,color:C.accent,fontWeight:700}}>@{profileUsername||"tap to set"}</span>
+              <span style={{fontSize:10,color:C.dimmer,marginLeft:5}}>✎</span>
+            </div>
+          )}
           <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{user.email}</div>
-          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:10}}>{[1,2,3,4,5].map(i=><Star key={i} size={14} color={C.gold} fill={C.gold}/>)}</div>
+          {userRank&&<div style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:12,background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.3)",fontSize:11,color:C.gold,fontWeight:700,marginBottom:4}}>🏆 #{userRank} в рейтинге месяца</div>}
+          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:6}}>{[1,2,3,4,5].map(i=><Star key={i} size={14} color={C.gold} fill={C.gold}/>)}</div>
         </div>
 
         <div style={{display:"flex",gap:10,marginBottom:14}}>
@@ -3432,7 +3493,12 @@
     const handleDelete = async () => {
       if (!window.confirm("Удалить этот улов?")) return;
       setDeleting(true);
-      try { await db.collection("catches").doc(user.uid).collection("records").doc(record.id).delete(); onBack(); }
+      try {
+        await db.collection("catches").doc(user.uid).collection("records").doc(record.id).delete();
+        // Также удаляем из публичной ленты если был опубликован
+        if (record.isPublic) db.collection("reports").doc(record.id).delete().catch(()=>{});
+        onBack();
+      }
       catch(e){ setDeleting(false); }
     };
 
