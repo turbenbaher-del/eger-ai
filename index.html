@@ -1226,6 +1226,7 @@
       setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime()}]);
       setInput("");
       logEvent("chat_message_sent");
+      logEvent("ai_query_sent",{is_voice:false});
       const r = getBotReplyCtx(text, weather, ctxRef.current);
       ctxRef.current = r.ctx;
       setLastTopic(r.ctx.lastTopic||"");
@@ -1536,6 +1537,38 @@
             <div style={{fontSize:10,color:C.dimmer,marginTop:8,textAlign:"center"}}>🟢 хороший клёв · 🟡 средний · 🔴 слабый</div>
           </div>
         )}
+
+        {/* Fish species forecast */}
+        {(()=>{
+          const p=weather.pressure||760, t=weather.airTemp||15, w=weather.wind||3;
+          const moon=moonPhase();
+          const mp=moon.phase;
+          const speciesForecast=[
+            {name:"Судак",   score:Math.min(10,Math.round((p>=752&&p<=768?3:1)+(t>=8&&t<=22?3:1)+(w<=5?2:1)+(mp>0.3&&mp<0.7?2:1)))},
+            {name:"Щука",    score:Math.min(10,Math.round((p>=748&&p<=762?3:1)+(t>=6&&t<=20?3:1)+(w<=6?2:1)+(mp<0.35||mp>0.65?2:1)))},
+            {name:"Лещ",     score:Math.min(10,Math.round((p>=758&&p<=770?4:1)+(t>=12&&t<=26?3:1)+(w<=4?2:1)+(mp>0.45&&mp<0.55?2:1)))},
+            {name:"Карп",    score:Math.min(10,Math.round((p>=755&&p<=768?3:p>768?4:1)+(t>=15&&t<=28?4:1)+(w<=3?2:1)+(mp>0.4&&mp<0.6?2:1)))},
+            {name:"Сом",     score:Math.min(10,Math.round((p>=748&&p<=762?3:1)+(t>=18&&t<=30?4:1)+(w<=4?2:1)+(mp>0.6?2:1)))},
+            {name:"Окунь",   score:Math.min(10,Math.round((p>=750&&p<=770?3:1)+(t>=10&&t<=24?3:1)+(w<=5?2:1)+(mp>0.35&&mp<0.65?2:1)))},
+          ].sort((a,b)=>b.score-a.score);
+          const scoreColor=s=>s>=8?"#2ecc71":s>=6?"#f59e0b":s>=4?"#f97316":"#ef4444";
+          return(
+            <div style={{...glass(),padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>Клёв по видам рыб</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                {speciesForecast.map(({name,score})=>(
+                  <div key={name} style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:56,fontSize:12,color:C.muted}}>{name}</div>
+                    <div style={{flex:1,height:6,borderRadius:3,background:"rgba(255,255,255,.07)",overflow:"hidden"}}>
+                      <div style={{width:`${score*10}%`,height:"100%",borderRadius:3,background:scoreColor(score),transition:"width .5s"}}/>
+                    </div>
+                    <div style={{width:36,textAlign:"right",fontSize:12,fontWeight:700,color:scoreColor(score)}}>{score}/10</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -1700,6 +1733,7 @@
     const [onlineCount] = useState(Math.floor(Math.random()*8)+3);
     const [attachOpen, setAttachOpen] = useState(false);
     const [username, setUsername] = useState("");
+    const [userTopBadge, setUserTopBadge] = useState("");
     const [replyTo, setReplyTo] = useState(null);
     const [selectedMsg, setSelectedMsg] = useState(null);
     const [editingMsg, setEditingMsg] = useState(null); // {id, text}
@@ -1768,7 +1802,7 @@
       return [...olderMsgs,...messages].filter(m=>{ if(seen.has(m.id))return false; seen.add(m.id); return true; });
     },[olderMsgs,messages]);
 
-    // Загрузка/создание username
+    // Загрузка/создание username + top badge
     useEffect(()=>{
       if(!user) return;
       const ref=db.collection("users").doc(user.uid);
@@ -1778,6 +1812,13 @@
         ref.set({username:uname,displayName:user.displayName||"Рыбак"},{merge:true});
         setUsername(uname);
       });
+      db.collection("users").doc(user.uid).collection("badges").get().then(snap=>{
+        if(snap.empty) return;
+        const topBadgeOrder=["whale_15kg","trophy_5kg","diversity_10","reporter","traveler","weekly_angler","photographer","early_bird","first_catch"];
+        const ids=new Set(snap.docs.map(d=>d.id));
+        const top=topBadgeOrder.find(id=>ids.has(id));
+        if(top){const bd=BADGE_DEFS.find(b=>b.id===top); if(bd) setUserTopBadge(bd.emoji);}
+      }).catch(()=>{});
     },[user]);
 
     // строит base в момент вызова (не при рендере) — избегает stale uid
@@ -1785,6 +1826,7 @@
       uid: user.uid,
       displayName: user.displayName || "Рыбак",
       username: username || genUsername(user.displayName||"рыбак"),
+      topBadge: userTopBadge || null,
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 
@@ -2034,9 +2076,10 @@
                 <div style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",width:"100%"}}>
                   {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:sameAsPrev?"transparent":`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{sameAsPrev?"":(msg.displayName||"Р")[0].toUpperCase()}</div>}
                   <div style={{maxWidth:isVideo?"160px":"75%"}} onClick={()=>setSelectedMsg(isSel?null:msg.id)}>
-                    {!isMe&&!sameAsPrev&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:2,paddingLeft:4}}>
+                    {!isMe&&!sameAsPrev&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:2,paddingLeft:4,display:"flex",alignItems:"center",gap:4}}>
+                      {msg.topBadge&&<span style={{fontSize:12}}>{msg.topBadge}</span>}
                       {msg.displayName}
-                      {msg.username&&<span style={{color:C.dimmer,fontWeight:400,marginLeft:4}}>@{msg.username}</span>}
+                      {msg.username&&<span style={{color:C.dimmer,fontWeight:400,marginLeft:2}}>@{msg.username}</span>}
                     </div>}
                     {/* Reply preview inside bubble */}
                     {msg.replyTo&&<div style={{margin:"0 0 6px",padding:"6px 10px",borderRadius:8,background:"rgba(255,255,255,.06)",borderLeft:`3px solid ${col}`,cursor:"default"}} onClick={e=>e.stopPropagation()}>
@@ -2831,6 +2874,7 @@
         if (met && !existingIds.has(id)) {
           await db.collection("users").doc(userId).collection("badges").doc(id).set({badgeId:id,unlockedAt:firebase.firestore.FieldValue.serverTimestamp()});
           const bd = BADGE_DEFS.find(b=>b.id===id);
+          logEvent("badge_unlocked",{badge_id:id});
           if (bd && "Notification" in window && Notification.permission==="granted") {
             new Notification(`${bd.emoji} Новый значок: ${bd.name}`,{body:bd.desc,icon:"https://turbenbaher-del.github.io/eger-ai/fish-icon.png"});
           }
@@ -2985,17 +3029,21 @@
         await db.collection("catches").doc(user.uid).collection("records").doc(recId).set(record);
         logEvent("catch_saved",{source:"button",has_photo:!!uploadedUrl,fish_type:fishType.id,weight_g:record.weightGrams,is_offline:!navigator.onLine});
         setSavedRec(record); setSaving(false); setStep(3);
+        logEvent("catch_details_opened");
       } catch(e){ console.error("save catch",e); setSaving(false); }
     };
 
     const handleFinish = async () => {
       if (savedRec&&(gearType||catchMethod||bait||notes)) {
-        try { await db.collection("catches").doc(user.uid).collection("records").doc(savedRec.id).update({gearType:gearType||null,catchMethod:catchMethod||null,bait:bait||null,notes:notes||null}); } catch(e){}
+        try {
+          await db.collection("catches").doc(user.uid).collection("records").doc(savedRec.id).update({gearType:gearType||null,catchMethod:catchMethod||null,bait:bait||null,notes:notes||null});
+          logEvent("catch_details_completed",{gear_type:gearType||"",has_bait:!!bait});
+        } catch(e){}
       }
       db.collection("catches").doc(user.uid).collection("records").get().then(snap=>{
         checkAndAwardBadges(user.uid,snap.docs.map(d=>d.data()));
       }).catch(()=>{});
-      onClose();
+      setStep(4);
     };
 
     return (
@@ -3050,9 +3098,18 @@
                 </div>
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:6,fontWeight:700,letterSpacing:.5}}>ВЕС (КГ)</div>
-                  <input type="number" inputMode="decimal" value={weightKg} onChange={e=>setWeightKg(e.target.value)}
-                    placeholder="0.0" min="0.1" max="99.9" step="0.1"
-                    style={{width:"100%",padding:"14px",background:C.surface,border:`1px solid ${weightKg?C.accent:C.border}`,borderRadius:14,color:C.text,fontSize:24,fontWeight:800,outline:"none",textAlign:"center"}}/>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <button onClick={()=>setWeightKg(v=>{const n=Math.max(0,parseFloat(v||0)-0.1); return n.toFixed(1);})} style={{width:44,height:44,borderRadius:12,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:22,cursor:"pointer",flexShrink:0}}>−</button>
+                    <input type="number" inputMode="decimal" value={weightKg} onChange={e=>setWeightKg(e.target.value)}
+                      placeholder="0.0" min="0.1" max="99.9" step="0.1"
+                      style={{flex:1,padding:"12px 8px",background:C.surface,border:`1px solid ${weightKg?C.accent:C.border}`,borderRadius:14,color:C.text,fontSize:24,fontWeight:800,outline:"none",textAlign:"center"}}/>
+                    <button onClick={()=>setWeightKg(v=>{const n=(parseFloat(v||0)+0.1); return n.toFixed(1);})} style={{width:44,height:44,borderRadius:12,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:22,cursor:"pointer",flexShrink:0}}>+</button>
+                  </div>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {["0.3","0.5","1.0","1.5","2.0","3.0","5.0","10.0"].map(w=>(
+                      <button key={w} onClick={()=>setWeightKg(w)} style={{flex:1,minWidth:0,padding:"5px 2px",borderRadius:10,background:weightKg===w?C.accentDim:C.surface,border:`1px solid ${weightKg===w?C.accent:C.border}`,color:weightKg===w?C.accent:C.muted,fontSize:11,cursor:"pointer",fontWeight:weightKg===w?700:400}}>{w}</button>
+                    ))}
+                  </div>
                 </div>
                 <div style={{...glass(),padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
                   <MapPin size={14} color={C.accent}/>
@@ -3109,10 +3166,42 @@
                 </div>
                 <button onClick={handleFinish}
                   style={{width:"100%",padding:"14px",background:`linear-gradient(135deg,#1a8a50,${C.accent})`,border:"none",borderRadius:16,color:"#07111e",fontSize:15,fontWeight:800,cursor:"pointer",marginTop:4}}>
-                  Готово
+                  Готово →
                 </button>
                 <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12,textAlign:"center",padding:6}}>
                   Закрыть без деталей
+                </button>
+              </div>
+            )}
+
+            {step===4&&(
+              <div style={{display:"flex",flexDirection:"column",gap:16,alignItems:"center",paddingTop:8}}>
+                <div style={{fontSize:56,marginBottom:4}}>🎉</div>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontSize:20,fontWeight:800,color:C.accent}}>{savedRec?.fishName} · {savedRec?(savedRec.weightGrams/1000).toFixed(1):"0"} кг</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:4}}>Улов сохранён! Похвастаться?</div>
+                </div>
+                <button onClick={()=>doShareCard(savedRec)} style={{width:"100%",padding:"14px",background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",borderRadius:16,color:C.cyan,fontSize:15,fontWeight:800,cursor:"pointer"}}>
+                  📤 Поделиться карточкой
+                </button>
+                <button onClick={()=>{
+                  if(savedRec){
+                    db.collection("catches").doc(user.uid).collection("records").doc(savedRec.id).update({isPublic:true}).catch(()=>{});
+                    db.collection("reports").doc(savedRec.id).set({
+                      id:savedRec.id,userId:savedRec.userId,author:savedRec.userName||"Рыбак",
+                      title:`${savedRec.fishName} ${(savedRec.weightGrams/1000).toFixed(1)} кг`,
+                      fish:savedRec.fishName,weight:(savedRec.weightGrams/1000).toFixed(1),
+                      location:savedRec.locationName,lat:savedRec.lat||null,lng:savedRec.lng||null,
+                      photoUrls:savedRec.photoUrls||[],gearType:gearType||null,notes:notes||null,
+                      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+                    }).catch(()=>{});
+                  }
+                  onClose();
+                }} style={{width:"100%",padding:"14px",background:C.accentDim,border:`1px solid ${C.accent}`,borderRadius:16,color:C.accent,fontSize:15,fontWeight:800,cursor:"pointer"}}>
+                  📢 Опубликовать в сообществе
+                </button>
+                <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,padding:6}}>
+                  Закрыть
                 </button>
               </div>
             )}

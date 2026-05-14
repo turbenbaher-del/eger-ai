@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() { return request.auth != null; }
+    function isOwner(uid) { return request.auth.uid == uid; }
+
+    // Catches: только владелец читает и пишет свои записи
+    match /catches/{userId}/records/{recordId} {
+      allow read, write: if isAuth() && isOwner(userId);
+    }
+
+    // Публичные записи (лента сообщества)
+    match /reports/{recordId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuth() && resource.data.userId == request.auth.uid;
+    }
+
+    // Значки: читать может любой авторизованный, писать — только Cloud Functions (сервисный аккаунт)
+    match /users/{userId}/badges/{badgeId} {
+      allow read: if isAuth();
+      allow write: if false; // только Cloud Functions
+    }
+
+    // Профиль пользователя
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && isOwner(userId);
+    }
+
+    // Рейтинг: только чтение для авторизованных, запись — Cloud Functions
+    match /leaderboard/{period}/rows/{userId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    // Турниры: только чтение
+    match /tournaments/{tournamentId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    // Чат сообщества
+    match /messages/{messageId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuth() && resource.data.uid == request.auth.uid;
+      allow delete: if isAuth() && resource.data.uid == request.auth.uid;
+    }
+
+    // Уровень воды: только чтение
+    match /water_levels/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // FCM токены: пользователь пишет свой токен
+    match /fcm_tokens/{tokenId} {
+      allow read: if false;
+      allow write: if isAuth();
+    }
+
+    // Push лог: только Cloud Functions
+    match /push_log/{userId} {
+      allow read, write: if false;
+    }
+
+    // Новости
+    match /news/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
