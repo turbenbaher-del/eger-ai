@@ -1073,6 +1073,14 @@
     const PRESSURE_LABELS=["8ч","","10ч","","12ч","","14ч","","16ч","","18ч",""];
     const pressureData = weather ? [...PRESSURE_DATA.slice(0,-1), weather.pressure] : PRESSURE_DATA;
 
+    // Recent community catches
+    const [recentCatches, setRecentCatches] = useState([]);
+    useEffect(()=>{
+      db.collection("reports").orderBy("createdAt","desc").limit(5).get()
+        .then(snap=>setRecentCatches(snap.docs.map(d=>({...d.data(),id:d.id}))))
+        .catch(()=>{});
+    },[]);
+
     // Nearby catches (within 20km, last 6 hours)
     const [nearbyCatches, setNearbyCatches] = useState([]);
     useEffect(()=>{
@@ -1208,6 +1216,31 @@
             </div>
           </div>
         </div>
+        {recentCatches.length>0&&(
+          <div style={{animation:"fadeUp .8s ease",marginTop:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <span style={{fontSize:14,fontWeight:700,color:C.text}}>Свежие уловы сообщества</span>
+              <span onClick={()=>setTab("news")} style={{fontSize:12,color:C.accent,display:"flex",alignItems:"center",gap:2,cursor:"pointer"}}>Все <ChevronRight size={13}/></span>
+            </div>
+            {recentCatches.map((r,i)=>{
+              const mins=r.createdAt?Math.round((Date.now()-r.createdAt.toMillis())/60000):null;
+              const timeStr=mins!==null?(mins<60?`${mins} мин`:`${Math.floor(mins/60)} ч`):"";
+              return (
+                <div key={r.id} style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setTab("news")}>
+                  {r.photoUrls?.[0]
+                    ? <img src={r.photoUrls[0]} alt="" style={{width:52,height:52,borderRadius:10,objectFit:"cover",flexShrink:0}}/>
+                    : <div style={{width:52,height:52,borderRadius:10,background:C.accentDim,border:`1px solid ${C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>🐟</div>
+                  }
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title||r.fish||"Улов"}</div>
+                    <div style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.author||"Рыбак"}{r.location?` · ${r.location}`:""}</div>
+                  </div>
+                  {timeStr&&<div style={{fontSize:10,color:C.dimmer,flexShrink:0}}>{timeStr} назад</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
@@ -4096,10 +4129,35 @@
     const [period, setPeriod] = useState("week");
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [updatedAt, setUpdatedAt] = useState(null);
 
     useEffect(()=>{
       logEvent("leaderboard_viewed",{period});
       setLoading(true); setRows([]);
+
+      if (period !== "all") {
+        // Используем предварительно вычисленные данные из Cloud Function
+        db.collection("leaderboard").doc(period).collection("rows")
+          .orderBy("rank","asc").limit(100).get()
+          .then(snap=>{
+            if (!snap.empty) {
+              const r = snap.docs.map(d=>({...d.data()}));
+              setRows(r);
+              const ts = r[0]?.updatedAt?.toDate?.();
+              if(ts) setUpdatedAt(ts.toLocaleDateString("ru-RU",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}));
+              setLoading(false);
+              return;
+            }
+            // Fallback: client-side aggregation
+            computeFromReports(period);
+          })
+          .catch(()=>computeFromReports(period));
+      } else {
+        computeFromReports(period);
+      }
+    },[period]);
+
+    const computeFromReports = (period) => {
       let q = db.collection("reports").orderBy("createdAt","desc").limit(500);
       if(period==="week"){
         const since=new Date(); since.setDate(since.getDate()-7);
@@ -4121,7 +4179,7 @@
         setRows(Object.values(map).sort((a,b)=>b.totalKg-a.totalKg||b.catches-a.catches).slice(0,50));
         setLoading(false);
       }).catch(()=>setLoading(false));
-    },[period]);
+    };
 
     const medals=["🥇","🥈","🥉"];
     return (
@@ -4129,6 +4187,7 @@
         <div style={{padding:"12px 14px",display:"flex",alignItems:"center",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:"rgba(7,17,30,.9)",position:"sticky",top:0,zIndex:2}}>
           <button onClick={onBack} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:14,fontWeight:700,padding:"4px 10px 4px 0"}}>←</button>
           <div style={{flex:1,fontSize:17,fontWeight:800,color:C.text}}>🏆 Рейтинг рыбаков</div>
+          {updatedAt&&<div style={{fontSize:9,color:C.dimmer}}>обн. {updatedAt}</div>}
         </div>
         <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",flexShrink:0}}>
           {[{id:"week",label:"Неделя"},{id:"month",label:"Месяц"},{id:"all",label:"Все"}].map(t=>(
