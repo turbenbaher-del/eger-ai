@@ -1692,6 +1692,43 @@
           );
         })()}
 
+        {/* Best fishing day this week */}
+        {weather.daily && (()=>{
+          const scores = weather.daily.time.map((date,i)=>{
+            const code=weather.daily.weather_code[i];
+            const prec=weather.daily.precipitation_probability_max[i]||0;
+            const wind=weather.daily.wind_speed_10m_max[i]||0;
+            const maxT=Math.round(weather.daily.temperature_2m_max[i]);
+            const codeScore=code===0?4:code<=3?3:code<=48?2:code<=57?1:0;
+            const windScore=wind<=3?3:wind<=5?2:wind<=8?1:0;
+            const tempScore=maxT>=12&&maxT<=26?3:maxT>=6?1:0;
+            const precScore=prec<20?2:prec<50?1:0;
+            return codeScore+windScore+tempScore+precScore;
+          });
+          const best=scores.reduce((b,s,i)=>s>scores[b]?i:b,1); // skip today (0), start from tomorrow
+          const bestDate=new Date(weather.daily.time[best]+"T12:00:00");
+          const DAYS_RU2=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
+          const bestLabel=best===1?"завтра":DAYS_RU2[bestDate.getDay()];
+          const maxT=Math.round(weather.daily.temperature_2m_max[best]);
+          const code=weather.daily.weather_code[best];
+          const wIcon2=(c)=>c===0?"☀️":c<=3?"🌤️":c<=48?"🌫️":c<=67?"🌧️":"⛈️";
+          if(scores[best]<6) return null;
+          return(
+            <div style={{...glass(),padding:"12px 14px",marginBottom:10,background:"rgba(46,204,113,.07)",border:`1px solid rgba(46,204,113,.35)`}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{fontSize:28}}>{wIcon2(code)}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:10,color:C.accent,fontWeight:700,letterSpacing:1}}>🏆 ЛУЧШИЙ ДЕНЬ ДЛЯ РЫБАЛКИ</div>
+                  <div style={{fontSize:14,fontWeight:800,color:C.text}}>
+                    {best===1?"Завтра":bestLabel.charAt(0).toUpperCase()+bestLabel.slice(1)} · {maxT>0?"+":""}{maxT}°C
+                  </div>
+                  <div style={{fontSize:11,color:C.muted}}>Оценка клёва: {scores[best]}/12 · {bestDate.toLocaleDateString("ru-RU",{day:"2-digit",month:"short"})}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* 7-day forecast */}
         {weather.daily && (
           <div style={{...glass(),padding:"12px 14px"}}>
@@ -2935,7 +2972,12 @@
           const lc={};
           recs.forEach(r=>{ if(r.locationName) lc[r.locationName]=(lc[r.locationName]||0)+1; });
           const top3locs=Object.entries(lc).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,c])=>({name:n,count:c}));
-          setCatchStats({total,totalW,best,favGear,uniqueDays,monthly,top3locs});
+          // Top-5 species
+          const sc={};
+          recs.forEach(r=>{ const n=r.fishName||r.fishType; if(n) sc[n]=(sc[n]||0)+1; });
+          const top5species=Object.entries(sc).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,c])=>({name:n,count:c}));
+          const maxSpecies=Math.max(...top5species.map(s=>s.count),1);
+          setCatchStats({total,totalW,best,favGear,uniqueDays,monthly,top3locs,top5species,maxSpecies});
           setStatsLoading(false);
         }).catch(()=>setStatsLoading(false));
       db.collection("users").doc(user.uid).collection("badges").get()
@@ -3030,13 +3072,29 @@
         )}
         {/* Top-3 locations */}
         {catchStats?.top3locs?.length>0&&(
-          <div style={{...glass(),padding:"12px 14px",marginBottom:14}}>
+          <div style={{...glass(),padding:"12px 14px",marginBottom:10}}>
             <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,letterSpacing:.5}}>ТОП МЕСТА ЛОВЛИ</div>
             {catchStats.top3locs.map((l,i)=>(
               <div key={l.name} style={{display:"flex",alignItems:"center",gap:10,marginBottom:i<catchStats.top3locs.length-1?8:0}}>
                 <span style={{fontSize:14}}>{["🥇","🥈","🥉"][i]}</span>
                 <span style={{flex:1,fontSize:13,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.name}</span>
                 <span style={{fontSize:12,color:C.muted}}>{l.count} раз</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Top-5 species */}
+        {catchStats?.top5species?.length>0&&(
+          <div style={{...glass(),padding:"12px 14px",marginBottom:14}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:700,letterSpacing:.5}}>ТОП ВИДЫ РЫБ</div>
+            {catchStats.top5species.map((s,i)=>(
+              <div key={s.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                <span style={{fontSize:12,color:C.muted,width:16,textAlign:"right"}}>{i+1}.</span>
+                <span style={{width:80,fontSize:12,color:C.text,flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</span>
+                <div style={{flex:1,height:5,borderRadius:3,background:"rgba(255,255,255,.07)",overflow:"hidden"}}>
+                  <div style={{width:`${Math.round(s.count/catchStats.maxSpecies*100)}%`,height:"100%",borderRadius:3,background:`linear-gradient(90deg,#1a8a50,${C.accent})`,transition:"width .5s"}}/>
+                </div>
+                <span style={{fontSize:11,color:C.muted,width:28,textAlign:"right",flexShrink:0}}>{s.count}×</span>
               </div>
             ))}
           </div>
