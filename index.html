@@ -37,7 +37,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel" data-presets="react">
-  const { useState, useRef, useEffect, useCallback } = React;
+  const { useState, useRef, useEffect, useCallback, useMemo } = React;
 
   firebase.initializeApp({
     apiKey:"AIzaSyDAGn8KaXwBMIkNEJ7NdjBS6lEV2JX_C-0",
@@ -729,11 +729,12 @@
     const levelVal = waterLevel ? waterLevel.level : seasonalLevel();
     const levelStr = `${levelVal>=0?'+':''}${levelVal} см`;
 
-    const spots=[
-      {name:"Вторая дамба",fish:"Лещ, Сазан",score:"9/10",dist:"2.3 км",Icon:Anchor,coords:"47.2731, 39.8701"},
-      {name:"Камышовая заводь",fish:"Белый амур",score:"8/10",dist:"4.1 км",Icon:Waves,coords:"47.2510, 39.8420"},
-      {name:"Перекат у Аксая",fish:"Щука, Судак",score:"7/10",dist:"1.8 км",Icon:TrendingUp,coords:"47.2667, 39.8667"},
-    ];
+    const nearestSpots = useMemo(()=>{
+      if(!userLat||!userLon) return SPOT_LIST.slice(0,3);
+      return [...SPOT_LIST]
+        .sort((a,b)=>haversine(userLat,userLon,a.lat,a.lon)-haversine(userLat,userLon,b.lat,b.lon))
+        .slice(0,3);
+    },[userLat,userLon]);
     const PRESSURE_LABELS=["8ч","","10ч","","12ч","","14ч","","16ч","","18ч",""];
     const pressureData = weather ? [...PRESSURE_DATA.slice(0,-1), weather.pressure] : PRESSURE_DATA;
     return (
@@ -771,7 +772,10 @@
           <div style={{background:"rgba(0,0,0,.3)",borderRadius:14,padding:"12px 14px",borderLeft:`3px solid ${C.accent}`}}>
             <div style={{fontSize:10,color:C.accent,letterSpacing:2,fontWeight:700,marginBottom:5}}>ИИ-СОВЕТ ЕГЕРЯ</div>
             <div style={{fontSize:13,color:"rgba(232,244,240,.85)",lineHeight:1.6}}>
-              {weather ? (weather.pressure>=758&&weather.pressure<=765 ? `Давление ${weather.pressure} мм — идеально для леща и сазана. Вода +${weather.waterTemp}°C, ветер ${weather.wind} м/с. Белый амур жмётся к камышу, бери кукурузу варёную.` : `Давление ${weather.pressure} мм, ветер ${weather.wind} м/с. Хищник активен при таком давлении — спиннинг у коряжника.`) : "Загружаю актуальный прогноз..."}
+              {weather ? (weather.pressure>=758&&weather.pressure<=765
+                ? `Давление ${weather.pressure} мм — идеально для леща и сазана на ${currentBody.name}. Вода +${weather.waterTemp}°C, ветер ${weather.wind} м/с. Иди на ${nearestSpots[0]?.name||"Вторую дамбу"} с фидером.`
+                : `Давление ${weather.pressure} мм, ветер ${weather.wind} м/с. Хищник активен у ${currentBody.name} — спиннинг на ${nearestSpots[0]?.name||"коряжник"}.`)
+                : "Загружаю актуальный прогноз..."}
             </div>
           </div>
         </div>
@@ -788,20 +792,24 @@
               На карте <ChevronRight size={13}/>
             </span>
           </div>
-          {spots.map((s,i)=>(
-            <a key={i} href={`https://maps.google.com/?q=${s.coords}`} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
+          {nearestSpots.map((s,i)=>{
+            const distKm = userLat&&userLon ? Math.round(haversine(userLat,userLon,s.lat,s.lon)) : null;
+            const scoreVal = distKm===null ? 8-i : distKm<5?10:distKm<15?9:distKm<40?8:7;
+            return (
+            <a key={i} href={`https://maps.google.com/?q=${s.lat},${s.lon}`} target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
               <div style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{width:36,height:36,borderRadius:10,background:C.accentDim,border:`1px solid ${C.borderHi}`,display:"flex",alignItems:"center",justifyContent:"center"}}><s.Icon size={16} color={C.accent}/></div>
                   <div>
                     <div style={{fontSize:13,fontWeight:600,color:C.text}}>{s.name}</div>
-                    <div style={{fontSize:11,color:C.muted}}>{s.fish} · {s.dist}</div>
+                    <div style={{fontSize:11,color:C.muted}}>{s.fish}{distKm!==null?` · ${distKm} км`:""}</div>
                   </div>
                 </div>
-                <div style={{background:C.accentDim,border:`1px solid ${C.borderHi}`,borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,color:C.accent}}>{s.score}</div>
+                <div style={{background:C.accentDim,border:`1px solid ${C.borderHi}`,borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,color:C.accent}}>{scoreVal}/10</div>
               </div>
             </a>
-          ))}
+            );
+          })}
           <div onClick={onGoChat} style={{...glass(`0 0 0 1px ${C.borderHi}`),background:"linear-gradient(135deg,rgba(46,204,113,.18),rgba(34,211,238,.10))",padding:"14px 18px",marginTop:8,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 14px ${C.accentGlow}`}}><Fish size={19} color="#07111e"/></div>
@@ -1550,7 +1558,19 @@
     {id:5,title:"Итоги весеннего нереста в Ростовской области",date:"3 мая 2026",source:"Минприроды РО",text:"Нерест 2026 года прошёл успешно. Численность молоди сазана и леща выше прошлогоднего уровня на 15%. Браконьерство снизилось на треть.",tag:"Аналитика"},
     {id:6,title:"Открытие сезона спортивной рыбалки на Мёртвом Донце",date:"1 мая 2026",source:"ФРР Ростовской области",text:"15 мая состоятся официальные соревнования по ловле карпа на Мёртвом Донце. Регистрация команд до 13 мая.",tag:"Соревнования"},
   ];
-  function NewsScreen({ user, onLogin }) {
+  function NewsScreen({ user, onLogin, userLat, userLon }) {
+    const nearestCity = useMemo(()=>{
+      if(!userLat||!userLon) return null;
+      const cities = [
+        {name:"Аксай",     lat:47.2681, lon:39.8699, kw:["аксай","аксайск"]},
+        {name:"Батайск",   lat:47.1456, lon:39.7456, kw:["батайск"]},
+        {name:"Азов",      lat:47.1023, lon:39.4123, kw:["азов","азовск"]},
+        {name:"Таганрог",  lat:47.2090, lon:38.9360, kw:["таганрог"]},
+        {name:"Новочеркасск", lat:47.4181, lon:40.0956, kw:["новочеркасск"]},
+        {name:"Ростов-на-Дону", lat:47.2357, lon:39.7015, kw:["ростов"]},
+      ];
+      return cities.sort((a,b)=>haversine(userLat,userLon,a.lat,a.lon)-haversine(userLat,userLon,b.lat,b.lon))[0];
+    },[userLat,userLon]);
     const [tab,setTab]=useState("news");
     const [newsItems,setNewsItems]=useState(NEWS_ITEMS);
     const [newsLoading,setNewsLoading]=useState(false);
@@ -1669,6 +1689,7 @@
                 <span style={{fontSize:11,color:C.text,fontWeight:700}}>В эфире</span>
                 {lastUpdated&&<span style={{fontSize:10,color:C.dimmer}}>· {lastUpdated.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</span>}
                 {newCount>0&&<span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#ef4444",borderRadius:10,padding:"1px 7px",cursor:"pointer"}} onClick={()=>setNewCount(0)}>+{newCount} новых</span>}
+                {nearestCity&&<span style={{fontSize:10,color:C.accent,background:C.accentDim,borderRadius:8,padding:"1px 7px",border:`1px solid ${C.borderHi}`}}>📍 {nearestCity.name}</span>}
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
                 {"serviceWorker" in navigator&&(
@@ -1684,15 +1705,23 @@
                 </div>
               </div>
             </div>
-            {newsItems.map(n=>{
+            {[...newsItems].sort((a,b)=>{
+              if(!nearestCity) return 0;
+              const kws=nearestCity.kw;
+              const match=n=>{const t=(n.title||"").toLowerCase()+(n.text||"").toLowerCase(); return kws.some(k=>t.includes(k));};
+              return match(b)-match(a);
+            }).map(n=>{
               const isNew=newIds.has(n.id);
+              const isLocal=nearestCity&&nearestCity.kw.some(k=>((n.title||"").toLowerCase()+(n.text||"").toLowerCase()).includes(k));
               return(
-                <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:isNew?"newsSlideIn .5s cubic-bezier(.22,.61,.36,1), glowFlash 1.4s ease .35s":"fadeUp .3s ease",border:isNew?`1px solid rgba(239,68,68,.4)`:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
+                <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:isNew?"newsSlideIn .5s cubic-bezier(.22,.61,.36,1), glowFlash 1.4s ease .35s":"fadeUp .3s ease",border:isNew?`1px solid rgba(239,68,68,.4)`:isLocal?`1px solid ${C.borderHi}`:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
                   {isNew&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#ef4444,#f59e0b)",animation:"pulseGlow 2s ease 3"}}/>}
+                  {isLocal&&!isNew&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${C.accent},${C.cyan})`}}/>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                     <div style={{display:"flex",gap:6,alignItems:"center"}}>
                       <span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span>
                       {isNew&&<span style={{fontSize:9,fontWeight:800,color:"#ef4444",background:"rgba(239,68,68,.15)",borderRadius:6,padding:"2px 6px"}}>НОВОЕ</span>}
+                      {isLocal&&!isNew&&<span style={{fontSize:9,fontWeight:800,color:C.accent,background:C.accentDim,borderRadius:6,padding:"2px 6px"}}>📍 рядом</span>}
                     </div>
                     <span style={{fontSize:10,color:C.dimmer}}>{n.date}</span>
                   </div>
@@ -1821,6 +1850,20 @@
     {name:"Цимлянское вдхр.", lat:47.6421, lon:42.0954, station:null},
     {name:"Манычское вдхр.",  lat:46.7012, lon:41.7234, station:null},
     {name:"р. Сал",           lat:47.40,   lon:40.80,   station:null},
+  ];
+
+  /* ── Список точек для HomeScreen (сортируется по геолокации) ── */
+  const SPOT_LIST = [
+    {name:"Вторая дамба (Аксай)",          fish:"Лещ, Сазан, Карп",      lat:47.2681, lon:39.8699, Icon:Anchor},
+    {name:"Гниловская переправа",           fish:"Судак, Жерех",          lat:47.1734, lon:39.7012, Icon:TrendingUp},
+    {name:"Мёртвый Донец (Ливенцовка)",    fish:"Щука, Карась",          lat:47.2198, lon:39.6234, Icon:Waves},
+    {name:"Камышовая заводь (Батайск)",    fish:"Карась, Карп, Амур",    lat:47.1456, lon:39.7456, Icon:Waves},
+    {name:"Перекат ниже Аксая",            fish:"Сазан, Голавль",        lat:47.2456, lon:39.9012, Icon:TrendingUp},
+    {name:"Глубокая яма у Аксая",          fish:"Сом, Судак",            lat:47.2534, lon:39.8923, Icon:Anchor},
+    {name:"Каменная гряда (Аксай)",        fish:"Судак, Щука",           lat:47.2612, lon:39.8812, Icon:TrendingUp},
+    {name:"Перекат у Багаевской",          fish:"Сазан, Чехонь",         lat:47.3456, lon:40.4123, Icon:TrendingUp},
+    {name:"Цимлянское вдхр.",              fish:"Лещ, Судак, Сом",       lat:47.6421, lon:42.0954, Icon:Anchor},
+    {name:"Манычское вдхр. (Пролетарск)", fish:"Амур, Карп, Толстолобик",lat:46.7012, lon:41.7234, Icon:Waves},
   ];
 
   /* ── SHOPS MAP ── */
@@ -2207,7 +2250,7 @@
           {tab==="chat"      && <ChatScreen weather={weather} userLat={userLat} userLon={userLon}/>}
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="map"       && <ShopsScreen userLat={userLat} userLon={userLon}/>}
-          {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)}/>}
+          {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
           {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)}/>}
         </main>
 
