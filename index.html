@@ -14,8 +14,7 @@
   <script src="https://unpkg.com/@babel/standalone@7.23.3/babel.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&load=package.full" type="text/javascript"></script>
   <style>
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     html, body, #root { height:100%; background:#07111e; }
@@ -1501,6 +1500,38 @@
   }
 
   /* ── NEWS ── */
+  async function fetchRssNews() {
+    const feeds = [
+      "https://news.google.com/rss/search?q=рыбалка+Ростов+Дон&hl=ru&gl=RU&ceid=RU:ru",
+      "https://news.google.com/rss/search?q=рыболовство+запрет+нерест&hl=ru&gl=RU&ceid=RU:ru",
+    ];
+    const proxy = "https://api.allorigins.win/get?url=";
+    const items = [];
+    for(const feed of feeds){
+      try{
+        const r = await fetch(proxy + encodeURIComponent(feed));
+        const d = await r.json();
+        const xml = new DOMParser().parseFromString(d.contents,"text/xml");
+        xml.querySelectorAll("item").forEach(el=>{
+          const title = el.querySelector("title")?.textContent||"";
+          const desc  = el.querySelector("description")?.textContent?.replace(/<[^>]+>/g,"").slice(0,220)||"";
+          const link  = el.querySelector("link")?.textContent||"";
+          const pub   = el.querySelector("pubDate")?.textContent||"";
+          const src   = el.querySelector("source")?.textContent||"Google Новости";
+          const tl    = title.toLowerCase();
+          const tag   = tl.includes("запрет")||tl.includes("штраф")?"Запрет"
+                       :tl.includes("клёв")||tl.includes("клев")||tl.includes("улов")?"Клёв"
+                       :tl.includes("нерест")?"Нерест"
+                       :tl.includes("соревнован")?"Соревнования"
+                       :tl.includes("уровень")||tl.includes("паводок")||tl.includes("вода")?"Гидрология"
+                       :"Новости";
+          if(title) items.push({id:link||title,title,text:desc,date:pub?new Date(pub).toLocaleDateString("ru-RU",{day:"numeric",month:"long"}):"",source:src,tag,link});
+        });
+      }catch(e){ console.log("rss error",e); }
+    }
+    return items.slice(0,15);
+  }
+
   const NEWS_ITEMS=[
     {id:1,title:"Нерест завершён — рыбалка на Дону открыта",date:"12 мая 2026",source:"Азово-Черноморское управление Росрыболовства",text:"С 12 мая снят нерестовый запрет на большинстве водоёмов Ростовской области. Разрешена ловля всех видов рыб. Норма вылова 5 кг на человека в сутки.",tag:"Официально"},
     {id:2,title:"Уровень воды в Дону поднялся на 42 см выше нормы",date:"10 мая 2026",source:"Донское бассейновое водное управление",text:"Половодье продолжается. У Аксайской пристани уровень составил 342 см. Прогноз — начало спада через 5–7 дней. Белый амур и карась активно кормятся у берегов.",tag:"Гидрология"},
@@ -1511,6 +1542,8 @@
   ];
   function NewsScreen({ user, onLogin }) {
     const [tab,setTab]=useState("news");
+    const [newsItems,setNewsItems]=useState(NEWS_ITEMS);
+    const [newsLoading,setNewsLoading]=useState(false);
     const [reports,setReports]=useState([]);
     const [reportsErr,setReportsErr]=useState(false);
     const [showForm,setShowForm]=useState(false);
@@ -1520,6 +1553,19 @@
     const [photoPreview,setPhotoPreview]=useState(null);
     const [posting,setPosting]=useState(false);
     const [uploadPct,setUploadPct]=useState(null);
+
+    // Авто-обновление новостей из RSS
+    useEffect(()=>{
+      const load=async()=>{
+        setNewsLoading(true);
+        try{ const items=await fetchRssNews(); if(items.length>0) setNewsItems(items); }
+        catch(e){ console.log("news err",e); }
+        setNewsLoading(false);
+      };
+      load();
+      const t=setInterval(load,30*60*1000); // каждые 30 минут
+      return()=>clearInterval(t);
+    },[]);
 
     useEffect(()=>{
       const unsub=db.collection("reports").orderBy("timestamp","desc").limit(50)
@@ -1569,7 +1615,30 @@
           </div>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"12px 14px"}}>
-          {tab==="news"&&<div>{NEWS_ITEMS.map(n=>(<div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}><span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span><span style={{fontSize:10,color:C.dimmer}}>{n.date}</span></div><div style={{fontSize:14,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:6}}>{n.title}</div><div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:8}}>{n.text}</div><div style={{fontSize:10,color:C.dimmer}}>Источник: {n.source}</div></div>))}</div>}
+          {tab==="news"&&<div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <span style={{fontSize:11,color:C.dimmer}}>{newsItems.length} новостей · обновляется каждые 30 мин</span>
+              <button onClick={async()=>{setNewsLoading(true);try{const it=await fetchRssNews();if(it.length>0)setNewsItems(it);}catch(e){}setNewsLoading(false);}}
+                style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,padding:"4px 10px",color:newsLoading?C.accent:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                <RefreshCw size={11} color={newsLoading?C.accent:C.muted} style={newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
+                {newsLoading?"Загрузка...":"Обновить"}
+              </button>
+            </div>
+            {newsItems.map(n=>(
+              <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:"fadeUp .3s ease"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span>
+                  <span style={{fontSize:10,color:C.dimmer}}>{n.date}</span>
+                </div>
+                <div style={{fontSize:14,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:6}}>{n.title}</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:8}}>{n.text}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:10,color:C.dimmer}}>Источник: {n.source}</span>
+                  {n.link&&<a href={n.link} target="_blank" rel="noreferrer" style={{fontSize:10,color:C.accent,fontWeight:700,textDecoration:"none"}}>Читать →</a>}
+                </div>
+              </div>
+            ))}
+          </div>}
           {tab==="reports"&&<div>
             <button onClick={openCreate} style={{width:"100%",padding:"13px",borderRadius:14,border:`1px dashed ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               <Plus size={16} color={C.accent}/> Добавить отчёт о рыбалке
@@ -1738,49 +1807,61 @@
       return <span style={{color:"#f59e0b",fontSize:12,letterSpacing:1}}>{"★".repeat(full)}{half?"☆":""}{"☆".repeat(5-full-(half?1:0))}</span>;
     };
 
-    const PIN_HTML = (active=false) =>
-      `<div style="position:relative;width:32px;height:40px"><div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:${active?"#f59e0b":"#2ecc71"};border:3px solid white;transform:rotate(-45deg);box-shadow:0 3px 10px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);font-size:13px;line-height:1">🎣</span></div></div>`;
-
     useEffect(()=>{
-      if(!mapDiv.current||lmap.current) return;
-      const L=window.L; if(!L) return;
-      const center = userLat && userLon ? [userLat, userLon] : [47.3, 39.85];
-      const zoom = userLat && userLon ? 12 : 9;
-      const map=L.map(mapDiv.current,{center,zoom,zoomControl:false});
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
-        attribution:'© <a href="https://openstreetmap.org">OSM</a> © <a href="https://carto.com">CARTO</a>',maxZoom:19
-      }).addTo(map);
-      L.control.zoom({position:"topright"}).addTo(map);
-      if(userLat && userLon){
-        L.circleMarker([userLat, userLon],{radius:8,fillColor:"#22d3ee",color:"#fff",weight:2,fillOpacity:0.9})
-          .bindPopup("📍 Вы здесь").addTo(map);
-      }
-      SHOPS.forEach(shop=>{
-        const mkIcon=(active)=>L.divIcon({html:PIN_HTML(active),iconSize:[32,40],iconAnchor:[15,40],className:""});
-        const m=L.marker([shop.lat,shop.lng],{icon:mkIcon(false)}).addTo(map);
-        m.on("click",()=>{
-          Object.values(mRefs.current).forEach(({m:mk,shop:s})=>mk.setIcon(L.divIcon({html:PIN_HTML(false),iconSize:[32,40],iconAnchor:[15,40],className:""})));
-          m.setIcon(mkIcon(true));
-          setSelected(shop);
-          map.flyTo([shop.lat,shop.lng],15,{duration:0.8});
+      if(!mapDiv.current || lmap.current) return;
+      if(!window.ymaps) return;
+      let cancelled = false;
+      const initCenter = userLat && userLon ? [userLat, userLon] : [47.3, 39.85];
+      const initZoom  = userLat && userLon ? 12 : 9;
+
+      window.ymaps.ready(()=>{
+        if(cancelled || !mapDiv.current) return;
+        const map = new ymaps.Map(mapDiv.current, {
+          center: initCenter, zoom: initZoom,
+          controls: ["zoomControl","typeSelector"],
+        },{suppressMapOpenBlock:true});
+
+        // Метка пользователя
+        if(userLat && userLon){
+          map.geoObjects.add(new ymaps.Placemark([userLat,userLon],
+            {hintContent:"📍 Вы здесь", balloonContent:"Вы здесь"},
+            {preset:"islands#blueCircleDotIcon"}));
+        }
+
+        // Метки магазинов
+        SHOPS.forEach(shop=>{
+          const mark = new ymaps.Placemark([shop.lat,shop.lng],
+            {hintContent:shop.name, balloonContent:`<b>${shop.name}</b><br>${shop.addr}, ${shop.city}<br>${shop.phone}<br>${shop.hours}`},
+            {preset:"islands#greenDotIcon", iconColor:"#2ecc71"}
+          );
+          mark.events.add("click",()=>{
+            Object.values(mRefs.current).forEach(({mark:mk})=>mk.options.set("preset","islands#greenDotIcon"));
+            mark.options.set("preset","islands#yellowDotIcon");
+            setSelected(shop);
+            map.setCenter([shop.lat,shop.lng],15,{duration:600});
+          });
+          mRefs.current[shop.id]={mark,shop};
+          map.geoObjects.add(mark);
         });
-        mRefs.current[shop.id]={m,shop};
+
+        lmap.current = map;
       });
-      lmap.current=map;
-      return()=>{ map.remove(); lmap.current=null; };
+
+      return()=>{ cancelled=true; if(lmap.current){lmap.current.destroy();lmap.current=null;} };
     },[]);
 
     const flyTo=(shop)=>{
-      const L=window.L; if(!L||!lmap.current) return;
-      Object.values(mRefs.current).forEach(({m,shop:s})=>m.setIcon(L.divIcon({html:PIN_HTML(s.id===shop.id),iconSize:[32,40],iconAnchor:[15,40],className:""})));
+      if(!lmap.current) return;
+      Object.values(mRefs.current).forEach(({mark})=>mark.options.set("preset","islands#greenDotIcon"));
+      mRefs.current[shop.id]?.mark.options.set("preset","islands#yellowDotIcon");
       setSelected(shop);
-      lmap.current.flyTo([shop.lat,shop.lng],15,{duration:0.8});
+      lmap.current.setCenter([shop.lat,shop.lng],15,{duration:600});
     };
 
     const back=()=>{
-      const L=window.L; if(L&&lmap.current){
-        Object.values(mRefs.current).forEach(({m})=>m.setIcon(L.divIcon({html:PIN_HTML(false),iconSize:[32,40],iconAnchor:[15,40],className:""})));
-        lmap.current.flyTo([47.3,39.85],9,{duration:0.6});
+      if(lmap.current){
+        Object.values(mRefs.current).forEach(({mark})=>mark.options.set("preset","islands#greenDotIcon"));
+        lmap.current.setCenter(userLat&&userLon?[userLat,userLon]:[47.3,39.85], userLat&&userLon?12:9,{duration:500});
       }
       setSelected(null);
     };
