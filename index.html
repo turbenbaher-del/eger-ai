@@ -87,6 +87,8 @@
   const AttachIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
   const XIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
   const RefreshCw=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>);
+  const BellIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>);
+  const BellOffIcon=({size=24,color='currentColor',style})=>(<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>);
 
   /* ── Tokens ── */
   const C = {
@@ -1551,6 +1553,20 @@
     const [lastUpdated,setLastUpdated]=useState(null);
     const [newCount,setNewCount]=useState(0);
     const seenIdsRef=useRef(new Set(NEWS_ITEMS.map(n=>n.id)));
+    const [notifPerm,setNotifPerm]=useState(()=>"Notification" in window?Notification.permission:"unsupported");
+    const notifPermRef=useRef(notifPerm);
+    useEffect(()=>{ notifPermRef.current=notifPerm; },[notifPerm]);
+
+    const requestNotif=async()=>{
+      if(!("Notification" in window)) return;
+      const p=await Notification.requestPermission();
+      setNotifPerm(p); notifPermRef.current=p;
+    };
+
+    const sendNotif=(title,body)=>{
+      if(notifPermRef.current!=="granted"||document.visibilityState==="visible") return;
+      try{ new Notification(title,{body:body.slice(0,120),icon:"https://turbenbaher-del.github.io/eger-ai/favicon.ico",tag:"eger-news",renotify:true}); }catch(e){}
+    };
     const [reports,setReports]=useState([]);
     const [reportsErr,setReportsErr]=useState(false);
     const [showForm,setShowForm]=useState(false);
@@ -1575,6 +1591,8 @@
               setNewIds(prev=>new Set([...prev,...fresh.map(it=>it.id)]));
               setNewCount(n=>n+fresh.length);
               setNewsItems(prev=>[...fresh,...prev].slice(0,30));
+              if(fresh.length===1) sendNotif(`🎣 ${fresh[0].title}`,fresh[0].text||"");
+              else sendNotif(`🎣 Рыбалка: ${fresh.length} новых новости`,fresh.map(it=>it.title).join(" · ").slice(0,120));
             } else if(items.length>0){
               setNewsItems(prev=>{
                 const existingIds=new Set(prev.map(p=>p.id));
@@ -1650,11 +1668,20 @@
                 {lastUpdated&&<span style={{fontSize:10,color:C.dimmer}}>· {lastUpdated.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})}</span>}
                 {newCount>0&&<span style={{fontSize:10,fontWeight:800,color:"#fff",background:"#ef4444",borderRadius:10,padding:"1px 7px",cursor:"pointer"}} onClick={()=>setNewCount(0)}>+{newCount} новых</span>}
               </div>
-              <button onClick={async()=>{setNewsLoading(true);try{const it=await fetchRssNews();if(it.length>0){const fr=it.filter(x=>!seenIdsRef.current.has(x.id));fr.forEach(x=>seenIdsRef.current.add(x.id));if(fr.length>0){setNewIds(p=>new Set([...p,...fr.map(x=>x.id)]));setNewCount(n=>n+fr.length);}setNewsItems(it);setLastUpdated(new Date());}}catch(e){}setNewsLoading(false);}}
-                style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,padding:"4px 10px",color:newsLoading?C.accent:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
-                <RefreshCw size={11} color={newsLoading?C.accent:C.muted} style={newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
-                {newsLoading?"Загрузка...":"Обновить"}
-              </button>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                {notifPerm!=="unsupported"&&(
+                  <button onClick={requestNotif} title={notifPerm==="granted"?"Уведомления включены":"Включить уведомления"}
+                    style={{background:notifPerm==="granted"?`rgba(46,204,113,.15)`:"none",border:`1px solid ${notifPerm==="granted"?C.accent:C.border}`,borderRadius:10,padding:"4px 8px",color:notifPerm==="granted"?C.accent:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4,transition:"all .2s"}}>
+                    {notifPerm==="granted"?<BellIcon size={11} color={C.accent}/>:<BellOffIcon size={11} color={C.muted}/>}
+                    {notifPerm==="granted"?"Вкл":"Уведомления"}
+                  </button>
+                )}
+                <button onClick={async()=>{setNewsLoading(true);try{const it=await fetchRssNews();if(it.length>0){const fr=it.filter(x=>!seenIdsRef.current.has(x.id));fr.forEach(x=>seenIdsRef.current.add(x.id));if(fr.length>0){setNewIds(p=>new Set([...p,...fr.map(x=>x.id)]));setNewCount(n=>n+fr.length);}setNewsItems(it);setLastUpdated(new Date());}}catch(e){}setNewsLoading(false);}}
+                  style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,padding:"4px 10px",color:newsLoading?C.accent:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                  <RefreshCw size={11} color={newsLoading?C.accent:C.muted} style={newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
+                  {newsLoading?"Загрузка...":"Обновить"}
+                </button>
+              </div>
             </div>
             {newsItems.map(n=>{
               const isNew=newIds.has(n.id);
