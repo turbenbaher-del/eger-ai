@@ -124,7 +124,7 @@
     border:"rgba(255,255,255,0.10)", borderHi:"rgba(46,204,113,0.40)",
     accent:"#2ecc71", accentDim:"rgba(46,204,113,0.15)", accentGlow:"rgba(46,204,113,0.35)",
     blue:"#3b82f6", cyan:"#22d3ee", gold:"#f59e0b",
-    text:"#e8f4f0", muted:"rgba(232,244,240,0.45)", dimmer:"rgba(232,244,240,0.45)",
+    text:"#e8f4f0", muted:"rgba(232,244,240,0.45)", dimmer:"rgba(232,244,240,0.25)",
   };
   const glass = (extra="") => ({
     background:C.surface, backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
@@ -1433,7 +1433,7 @@
               <span onClick={()=>setTab("news")} style={{fontSize:12,color:C.accent,display:"flex",alignItems:"center",gap:2,cursor:"pointer"}}>Все <ChevronRight size={13}/></span>
             </div>
             {recentCatches.map((r,i)=>{
-              const mins=r.createdAt?Math.round((Date.now()-r.createdAt.toMillis())/60000):null;
+              const mins=r.timestamp?Math.round((Date.now()-r.timestamp.toMillis())/60000):null;
               const timeStr=mins!==null?(mins<60?`${mins} мин`:`${Math.floor(mins/60)} ч`):"";
               return (
                 <div key={r.id} style={{...glass(),padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setTab("news")}>
@@ -1602,7 +1602,7 @@
             <div style={{fontSize:13,fontWeight:700,color:C.text}}>Егерь ИИ</div>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:C.accent,animation:"pulseGlow 2s ease infinite"}}/>
-              <span style={{fontSize:10,color:C.accent}}>онлайн · {weather?`вода +${weather.waterTemp}°C`:"Знает Дон"}</span>
+              <span style={{fontSize:10,color:C.accent}}>онлайн · {weather?`вода ${weather.waterTemp>0?'+':''}${weather.waterTemp}°C`:"Знает Дон"}</span>
             </div>
           </div>
           <button onClick={()=>{ const v=!newbieMode; setNewbieMode(v); localStorage.setItem("eger_newbie",v?"1":"0"); }}
@@ -2045,7 +2045,7 @@
         await db.collection("suggested_spots").add({
           name: name.trim(), description: desc.trim(), fish: fish.trim(),
           lat: userLat||null, lng: userLon||null,
-          userId: user?.uid||"anon", userName: user?.displayName||"Рыбак",
+          uid: user?.uid||"anon", userId: user?.uid||"anon", userName: user?.displayName||"Рыбак",
           status: "pending", createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
         logEvent("spot_suggested");
@@ -4198,7 +4198,8 @@
           weight:record.weightGrams?(record.weightGrams/1000).toFixed(1):null,
           location:record.locationName, lat:record.lat||null, lng:record.lng||null,
           photoUrls:record.photoUrls||[], gearType:record.gearType||null, notes:record.notes||null,
-          createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+          displayName:record.userName||user.displayName||"Рыбак",
+          timestamp:firebase.firestore.FieldValue.serverTimestamp(),
         });
         setPublished(true);
       } catch(e){ console.error("publish",e); }
