@@ -843,11 +843,13 @@
   }
 
   /* ── Sparkline ── */
-  function Sparkline({ data, width=280, height=60 }) {
+  function Sparkline({ data, width=280, height=60, nowIdx }) {
     const min=Math.min(...data)-2, max=Math.max(...data)+2;
-    const pts = data.map((v,i)=>{ const x=(i/(data.length-1))*width, y=height-((v-min)/(max-min))*height; return `${x},${y}`; }).join(" ");
+    const allPts = data.map((v,i)=>{ const x=(i/(data.length-1))*width, y=height-((v-min)/(max-min))*height; return `${x},${y}`; });
+    const pts = allPts.join(" ");
     const fillPts = `0,${height} ${pts} ${width},${height}`;
-    const [lx,ly] = pts.split(" ").slice(-1)[0].split(",");
+    const dotIdx = nowIdx!=null ? nowIdx : data.length-1;
+    const [dx,dy] = allPts[dotIdx].split(",");
     return (
       <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{overflow:"visible"}}>
         <defs>
@@ -858,7 +860,9 @@
         </defs>
         <polygon points={fillPts} fill="url(#spGrad)"/>
         <polyline points={pts} fill="none" stroke={C.accent} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" filter="url(#glow)"/>
-        <circle cx={lx} cy={ly} r="4" fill={C.accent} style={{filter:`drop-shadow(0 0 6px ${C.accent})`}}/>
+        {/* Vertical "now" marker */}
+        <line x1={dx} y1="0" x2={dx} y2={height} stroke={C.accent} strokeWidth="1" strokeDasharray="3,3" strokeOpacity="0.45"/>
+        <circle cx={dx} cy={dy} r="4" fill={C.accent} style={{filter:`drop-shadow(0 0 6px ${C.accent})`}}/>
       </svg>
     );
   }
@@ -1085,9 +1089,10 @@
     const nowHour = new Date().getHours();
     const pressureData = useMemo(()=>{
       if (!weather?.hourly?.surface_pressure) return PRESSURE_DATA;
+      // 12 bars: nowHour-5 … nowHour (index 5) … nowHour+6
       return Array.from({length:12},(_,i)=>{
-        const h = nowHour - 11 + i;
-        const idx = Math.max(0, h);
+        const h = nowHour - 5 + i;
+        const idx = ((h % 24) + 24) % 24;
         const raw = idx < weather.hourly.surface_pressure.length
           ? weather.hourly.surface_pressure[idx]
           : weather.pressure / 0.750064;
@@ -1095,8 +1100,11 @@
       });
     },[weather, nowHour]);
     const pressureLabels = useMemo(()=>{
+      // 6 labels; label[2] = "сейчас" aligns visually with bar 5 (nowHour)
       return Array.from({length:6},(_,i)=>{
-        const h = ((nowHour - 10 + i*2) % 24 + 24) % 24;
+        if(i===2) return "сейчас";
+        const offset = [-4,-2,0,2,4,6][i];
+        const h = ((nowHour + offset) % 24 + 24) % 24;
         return `${h}ч`;
       });
     },[nowHour]);
@@ -1255,10 +1263,10 @@
               <span style={{fontSize:10,color:C.dimmer,letterSpacing:1.5}}>ДАВЛЕНИЕ (ммрт) · 12 ч</span>
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{weather?`${weather.pressure} мм${pressureTrend}`:"…"}</span>
             </div>
-            <Sparkline data={pressureData}/>
+            <Sparkline data={pressureData} nowIdx={5}/>
             <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
               {pressureLabels.map((l,i)=>(
-                <span key={i} style={{fontSize:9,color:i===5?C.accent:C.dimmer,fontWeight:i===5?700:400}}>{l}</span>
+                <span key={i} style={{fontSize:9,color:i===2?C.accent:C.dimmer,fontWeight:i===2?700:400}}>{l}</span>
               ))}
             </div>
           </div>
