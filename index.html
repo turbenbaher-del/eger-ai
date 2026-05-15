@@ -2238,13 +2238,14 @@
     const onEnd = () => { setPlaying(false); setProgress(0); };
     const circ = 2*Math.PI*(SIZE/2-4);
     return (
-      <div style={{position:"relative",width:SIZE,height:SIZE,cursor:"pointer"}} onClick={e=>{e.stopPropagation();toggle();}}>
+      <div style={{position:"relative",width:SIZE,height:SIZE,cursor:"pointer"}}>
         <svg style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}} width={SIZE} height={SIZE}>
           <circle cx={SIZE/2} cy={SIZE/2} r={SIZE/2-4} fill="none" stroke={isMe?C.blue:col} strokeWidth={3} strokeOpacity={.25}/>
           <circle cx={SIZE/2} cy={SIZE/2} r={SIZE/2-4} fill="none" stroke={isMe?C.blue:col} strokeWidth={3}
             strokeDasharray={circ} strokeDashoffset={circ*(1-progress)} style={{transition:"stroke-dashoffset .1s linear"}}/>
         </svg>
-        <div style={{position:"absolute",inset:4,borderRadius:"50%",overflow:"hidden",background:"#000"}}>
+        <div style={{position:"absolute",inset:4,borderRadius:"50%",overflow:"hidden",background:"#000"}}
+          onClick={e=>{e.stopPropagation();toggle();}}>
           <video ref={vRef} src={url} playsInline style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
             onTimeUpdate={onTime} onEnded={onEnd}/>
         </div>
@@ -2372,24 +2373,27 @@
     const toggleReaction = async (msgId, emoji) => {
       if(!user){ onLogin(); return; }
       setSelectedMsg(null);
-      const ref=db.collection("messages").doc(msgId);
-      const doc=await ref.get();
-      const reactions=doc.data().reactions||{};
-      const upd={};
-      // Снять предыдущую реакцию пользователя (одна реакция на пользователя)
-      for(const [e, uids] of Object.entries(reactions)){
-        if(uids.includes(user.uid)){
-          const filtered=uids.filter(u=>u!==user.uid);
-          upd[`reactions.${e}`]=filtered.length>0?filtered:firebase.firestore.FieldValue.delete();
+      try {
+        const ref=db.collection("messages").doc(msgId);
+        const doc=await ref.get();
+        if(!doc.exists) return;
+        const reactions=doc.data().reactions||{};
+        const upd={};
+        // Снять предыдущую реакцию пользователя (одна реакция на пользователя)
+        for(const [e, uids] of Object.entries(reactions)){
+          if(Array.isArray(uids)&&uids.includes(user.uid)){
+            const filtered=uids.filter(u=>u!==user.uid);
+            upd[`reactions.${e}`]=filtered.length>0?filtered:firebase.firestore.FieldValue.delete();
+          }
         }
-      }
-      // Добавить новую, если не совпадает с предыдущей (нажал ту же — снял)
-      const alreadyHad=(reactions[emoji]||[]).includes(user.uid);
-      if(!alreadyHad){
-        const cur=(reactions[emoji]||[]).filter(u=>u!==user.uid);
-        upd[`reactions.${emoji}`]=[...cur,user.uid];
-      }
-      if(Object.keys(upd).length>0) await ref.update(upd);
+        // Добавить новую, если не совпадает с предыдущей (нажал ту же — снял)
+        const alreadyHad=(reactions[emoji]||[]).includes(user.uid);
+        if(!alreadyHad){
+          const cur=(reactions[emoji]||[]).filter(u=>u!==user.uid);
+          upd[`reactions.${emoji}`]=[...cur,user.uid];
+        }
+        if(Object.keys(upd).length>0) await ref.update(upd);
+      } catch(e){ console.error("toggleReaction error:", e); }
     };
 
     /* ── delete ── */
