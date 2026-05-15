@@ -83,6 +83,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Счётчик использования ИИ — только Cloud Functions
+    match /ai_usage/{userId} {
+      allow read, write: if false;
+    }
+
     // Предложенные точки (модерируются)
     match /suggested_spots/{docId} {
       allow read: if false; // только Cloud Functions и модераторы

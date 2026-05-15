@@ -336,3 +336,109 @@ exports.onSpotApproved = functions
     functions.logger.info(`Badge explorer awarded to ${userId} for spot ${context.params.spotId}`);
     return null;
   });
+
+
+// ────────────────────────────────────────────────────────────
+// 9. Егерь ИИ — Claude AI агент (Anthropic claude-haiku)
+// ────────────────────────────────────────────────────────────
+exports.askEger = functions
+  .region("europe-west3")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Auth required");
+
+    const { messages = [], weather, userCatches = [] } = data;
+
+    // Rate limit: 50 сообщений в день на пользователя
+    const today = new Date().toISOString().split("T")[0];
+    const usageRef = db.collection("ai_usage").doc(context.auth.uid);
+    const usageDoc = await usageRef.get();
+    const usageData = usageDoc.exists ? usageDoc.data() : {};
+    const todayCount = usageData.date === today ? (usageData.count || 0) : 0;
+
+    if (todayCount >= 50) {
+      return { limited: true, message: "Лимит 50 сообщений в день исчерпан 🎣 Возвращайся завтра!" };
+    }
+
+    // Контекстная информация для системного промпта
+    let weatherCtx = "Данные погоды недоступны.";
+    if (weather) {
+      weatherCtx = `Текущая погода: ${weather.temp ?? "?"}°C, ветер ${weather.wind ?? "?"} м/с, давление ${weather.pressure ?? "?"} мм.рт.ст., температура воды ~${weather.waterTemp ?? "?"}°C.`;
+    }
+    let catchesCtx = "История уловов пуста.";
+    if (userCatches.length > 0) {
+      catchesCtx = "Последние уловы пользователя: " + userCatches
+        .map(c => `${c.fishType || "рыба"} ${c.weightGrams ? (c.weightGrams / 1000).toFixed(1) + " кг" : ""} ${c.locationName ? "на " + c.locationName : ""}`.trim())
+        .join("; ") + ".";
+    }
+
+    const systemPrompt = `Ты — Егерь ИИ, опытный рыбак и персональный советник по рыбалке в Ростовской области России.
+Ты знаешь каждый омут и перекат реки Дон, Цимлянского водохранилища, озера Маныч, Азовского моря и малых рек области.
+
+Отвечай на русском языке. Тон: дружелюбный, практичный, с лёгким юмором рыбака. Давай конкретные и полезные советы.
+
+Области экспертизы:
+- Рыбные места: Дон, Цимлянское вдхр, Маныч, Азовское море, реки Аксай, Кагальник, Сал, Северский Донец
+- Рыбы: судак, щука, сом, лещ, карп, сазан, тарань, окунь, чехонь, белый амур, голавль, жерех, синец, берш
+- Снасти: фидер, спиннинг, поплавочная, нахлыст, карповая рыбалка, зимняя рыбалка, донка
+- Влияние давления, ветра, луны, температуры воды и сезона на клёв
+- Прикормки, насадки, монтажи, техники проводки
+
+${weatherCtx}
+${catchesCtx}
+
+Отвечай кратко — 2–3 абзаца максимум. Используй эмодзи умеренно (1–2 на ответ). Не начинай каждый ответ одинаково. Если вопрос выходит за пределы рыбалки — мягко верни тему к рыбалке.`;
+
+    // Подготовка истории диалога для Claude
+    const rawMessages = messages
+      .filter(m => m.content && m.role)
+      .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content).slice(0, 2000) }));
+
+    // Сообщения должны начинаться с user и чередоваться
+    while (rawMessages.length > 0 && rawMessages[0].role !== "user") rawMessages.shift();
+    const anthropicMessages = [];
+    for (const m of rawMessages) {
+      if (anthropicMessages.length === 0 || anthropicMessages[anthropicMessages.length - 1].role !== m.role) {
+        anthropicMessages.push(m);
+      } else {
+        anthropicMessages[anthropicMessages.length - 1].content += "\n" + m.content;
+      }
+    }
+    if (anthropicMessages.length === 0) throw new functions.https.HttpsError("invalid-argument", "No messages");
+
+    // API key: сначала env (Functions v2), потом config (Functions v1)
+    const apiKey = process.env.ANTHROPIC_API_KEY || functions.config().anthropic?.api_key;
+    if (!apiKey) {
+      functions.logger.error("ANTHROPIC_API_KEY not configured");
+      throw new functions.https.HttpsError("internal", "AI не настроен — обратитесь к администратору");
+    }
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 600,
+        system: systemPrompt,
+        messages: anthropicMessages,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      functions.logger.error("Anthropic API error:", response.status, errText);
+      throw new functions.https.HttpsError("internal", "Сервис ИИ временно недоступен");
+    }
+
+    const result = await response.json();
+    const replyText = result.content?.[0]?.text || "Не смог ответить, попробуй ещё раз 🎣";
+
+    // Обновляем счётчик использования
+    await usageRef.set({ date: today, count: todayCount + 1 }, { merge: true });
+
+    functions.logger.info(`askEger uid=${context.auth.uid} in=${result.usage?.input_tokens} out=${result.usage?.output_tokens}`);
+    return { text: replyText };
+  });

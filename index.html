@@ -11,6 +11,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-messaging-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-functions-compat.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone@7.23.3/babel.min.js"></script>
@@ -67,6 +68,7 @@
   const db = firebase.firestore();
   db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
   const storage = firebase.storage();
+  const functionsRegion = firebase.app().functions("europe-west3");
   const messaging = firebase.messaging();
   let _analytics; try{_analytics=firebase.analytics();}catch(e){}
   const logEvent=(name,params={})=>{try{_analytics&&_analytics.logEvent(name,params);}catch(e){}};
@@ -1487,6 +1489,7 @@
     const srTextRef = useRef("");
     const ctxRef = useRef({});
     const userCatchesRef = useRef([]);
+    const msgsRef = useRef([{role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime()}]);
 
     useEffect(()=>{
       if(!user?.uid) return;
@@ -1497,25 +1500,53 @@
     },[user?.uid]);
 
     useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
+    useEffect(()=>{ msgsRef.current = msgs; },[msgs]);
 
+    // Fallback local bot reply (used if Cloud Function fails)
     const aiReply = (text, delay=1400) => {
       setTyping(true);
       setTimeout(()=>{ setTyping(false); setMsgs(p=>[...p,{role:"assistant",type:"text",text,time:fmtTime()}]); }, delay+Math.random()*600);
     };
 
+    // Real AI via Claude (Cloud Function) with local fallback
+    const callAI = async (userText) => {
+      const queryText = newbieMode ? `Объясни просто, без рыболовного жаргона, как для новичка: ${userText}` : userText;
+      setTyping(true);
+      try {
+        const fn = functionsRegion.httpsCallable("askEger");
+        const history = msgsRef.current
+          .filter(m => m.type === "text" || !m.type)
+          .slice(-12)
+          .map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
+        const result = await fn({
+          messages: history,
+          weather: weather ? { temp: weather.temp, wind: weather.wind, pressure: weather.pressure, waterTemp: weather.waterTemp } : null,
+          userCatches: userCatchesRef.current.slice(0, 5).map(c => ({ fishType: c.fishType, weightGrams: c.weightGrams, locationName: c.locationName }))
+        });
+        setTyping(false);
+        const replyText = result.data.limited ? result.data.message : result.data.text;
+        const r = getBotReplyCtx(queryText, weather, ctxRef.current);
+        ctxRef.current = r.ctx; setLastTopic(r.ctx.lastTopic || "");
+        setMsgs(p => [...p, { role:"assistant", type:"text", text: replyText, time:fmtTime() }]);
+      } catch(e) {
+        setTyping(false);
+        const r = getBotReplyCtx(queryText, weather, ctxRef.current);
+        ctxRef.current = r.ctx; setLastTopic(r.ctx.lastTopic || "");
+        const note = getDiaryNote(userText, userCatchesRef.current);
+        setMsgs(p => [...p, { role:"assistant", type:"text", text: note ? note+r.text : r.text, time:fmtTime() }]);
+      }
+    };
+
     const send = useCallback((overrideText)=>{
       const text=(overrideText||input).trim(); if(!text) return;
-      setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime()}]);
+      const newMsg = {role:"user",type:"text",text,time:fmtTime()};
+      msgsRef.current = [...msgsRef.current, newMsg];
+      setMsgs(p=>[...p,newMsg]);
       if(!overrideText) setInput("");
       logEvent("chat_message_sent");
       logEvent("ai_query_sent",{is_voice:false});
-      const queryText = newbieMode ? `Объясни просто, без рыболовного жаргона, как для новичка: ${text}` : text;
-      const r = getBotReplyCtx(queryText, weather, ctxRef.current);
-      ctxRef.current = r.ctx;
-      setLastTopic(r.ctx.lastTopic||"");
-      const note = getDiaryNote(text, userCatchesRef.current);
-      aiReply(note ? note+r.text : r.text);
-    },[input,weather]);
+      callAI(text);
+    },[input,weather,newbieMode]);
 
     const sendPhoto = async (file) => {
       if(!file) return;
@@ -1559,13 +1590,11 @@
         srTextRef.current = "";
         setVoiceText("");
         if (text) {
-          setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime(),voice:true}]);
+          const newMsg = {role:"user",type:"text",text,time:fmtTime(),voice:true};
+          msgsRef.current = [...msgsRef.current, newMsg];
+          setMsgs(p=>[...p,newMsg]);
           logEvent("chat_message_sent",{method:"voice"});
-          const r = getBotReplyCtx(text, weather, ctxRef.current);
-          ctxRef.current = r.ctx;
-          setLastTopic(r.ctx.lastTopic||"");
-          const note = getDiaryNote(text, userCatchesRef.current);
-          aiReply(note ? note+r.text : r.text);
+          callAI(text);
         }
       };
 
