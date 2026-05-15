@@ -1676,7 +1676,7 @@
             onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
 
           {input.trim()
-            ? <button onClick={send} style={{width:46,height:46,borderRadius:"50%",border:"none",flexShrink:0,background:`linear-gradient(135deg,#1a8a50,${C.accent})`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 16px ${C.accentGlow}`,transition:"all .25s"}}>
+            ? <button onClick={()=>send()} style={{width:46,height:46,borderRadius:"50%",border:"none",flexShrink:0,background:`linear-gradient(135deg,#1a8a50,${C.accent})`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 16px ${C.accentGlow}`,transition:"all .25s"}}>
                 <Send size={18} color="#07111e"/>
               </button>
             : <button onClick={voiceRec?stopVoice:startVoice} style={{width:46,height:46,borderRadius:"50%",border:"none",flexShrink:0,background:voiceRec?"#ef4444":C.surfaceHi,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s",animation:voiceRec?"pulseGlow .8s ease infinite":"none"}}>
