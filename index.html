@@ -1110,7 +1110,7 @@
     // Recent community catches
     const [recentCatches, setRecentCatches] = useState([]);
     useEffect(()=>{
-      db.collection("reports").orderBy("createdAt","desc").limit(5).get()
+      db.collection("reports").orderBy("timestamp","desc").limit(5).get()
         .then(snap=>setRecentCatches(snap.docs.map(d=>({...d.data(),id:d.id}))))
         .catch(()=>{});
     },[]);
@@ -1270,11 +1270,14 @@
           </div>
         </div>
         <div style={{display:"flex",gap:8,marginBottom:14,animation:"fadeUp .6s ease"}}>
-          <WPill Icon={Thermometer} val={weather?`+${weather.airTemp}°C`:"…"} label="воздух" color={C.gold} loading={weatherLoading}/>
-          <WPill Icon={Droplets}    val={weather?`+${weather.waterTemp}°C`:"…"} label="вода"   color={C.cyan} loading={weatherLoading}/>
+          <WPill Icon={Thermometer} val={weather?(weather.airTemp>0?`+${weather.airTemp}°C`:`${weather.airTemp}°C`):"…"} label="воздух" color={C.gold} loading={weatherLoading}/>
+          <WPill Icon={Droplets}    val={weather?(weather.waterTemp>0?`+${weather.waterTemp}°C`:`${weather.waterTemp}°C`):"…"} label="вода"   color={C.cyan} loading={weatherLoading}/>
           <WPill Icon={Wind}        val={weather?`${weather.wind} м/с`:"…"}  label={weather&&weather.windDir!=null?(()=>{const dirs=["С","СВ","В","ЮВ","Ю","ЮЗ","З","СЗ"];return dirs[Math.round(weather.windDir/45)%8];})():"ветер"} color={C.blue} loading={weatherLoading}/>
           <WPill Icon={Waves}       val={levelStr} label={waterLevel?(levelVal>20?"▲ растёт":levelVal<-20?"▼ низкий":"→ норма"):"Дон · сезон"} color={levelVal>20?C.cyan:levelVal<-20?"#ef4444":C.accent} loading={false}/>
         </div>
+        <button onClick={()=>setTab("weather")} style={{width:"100%",padding:"8px 14px",background:"none",border:`1px solid ${C.border}`,borderRadius:12,color:C.muted,fontSize:12,cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <Cloud size={13} color={C.cyan}/><span style={{color:C.cyan,fontWeight:600}}>Подробный прогноз погоды →</span>
+        </button>
         {/* Рыболовные запреты */}
         {(()=>{
           const now=new Date(), m=now.getMonth()+1, d=now.getDate();
@@ -1492,10 +1495,10 @@
       setTimeout(()=>{ setTyping(false); setMsgs(p=>[...p,{role:"assistant",type:"text",text,time:fmtTime()}]); }, delay+Math.random()*600);
     };
 
-    const send = useCallback(()=>{
-      const text=input.trim(); if(!text) return;
+    const send = useCallback((overrideText)=>{
+      const text=(overrideText||input).trim(); if(!text) return;
       setMsgs(p=>[...p,{role:"user",type:"text",text,time:fmtTime()}]);
-      setInput("");
+      if(!overrideText) setInput("");
       logEvent("chat_message_sent");
       logEvent("ai_query_sent",{is_voice:false});
       const queryText = newbieMode ? `Объясни просто, без рыболовного жаргона, как для новичка: ${text}` : text;
@@ -1606,7 +1609,7 @@
           <div ref={bottomRef}/>
         </div>
         <div style={{display:"flex",gap:8,padding:"6px 14px",overflowX:"auto",scrollbarWidth:"none"}}>
-          {quick.map(q=>(<button key={q} onClick={()=>{ setInput(q); }} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",animation:"fadeIn .3s ease"}}>{q}</button>))}
+          {quick.map(q=>(<button key={q} onClick={()=>{ send(q); }} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",animation:"fadeIn .3s ease"}}>{q}</button>))}
         </div>
 
         {/* Распознавание речи */}
@@ -2131,7 +2134,7 @@
             <a href={`https://yandex.ru/maps/?ll=${centerLon},${centerLat}&z=${zoom}`} target="_blank" rel="noreferrer" style={{fontSize:11,color:C.accent,textDecoration:"none"}}>Открыть в Яндекс.Картах ↗</a>
           </div>}
           <iframe
-            key={`${centerLon}_${centerLat}_${zoom}`}
+            key="yandex-spots-map"
             src={mapSrc}
             style={{width:"100%",height:"100%",display:"block",border:"none",opacity:mapLoaded?1:0,transition:"opacity .5s"}}
             frameBorder="0"
@@ -2212,9 +2215,6 @@
               </div>
             );
           })}
-          {filtered.length===0 && (
-            <div style={{textAlign:"center",padding:24,color:C.muted,fontSize:13}}>Ничего не найдено</div>
-          )}
         </div>
       </div>
     );
@@ -2260,7 +2260,7 @@
   function CommunityScreen({ user, onLogin }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
-    const [onlineCount] = useState(Math.floor(Math.random()*8)+3);
+    const [onlineCount] = useState(null);
     const [attachOpen, setAttachOpen] = useState(false);
     const [username, setUsername] = useState("");
     const [userTopBadge, setUserTopBadge] = useState("");
@@ -2568,6 +2568,16 @@
       if(voiceStream.current){ voiceStream.current.getTracks().forEach(t=>t.stop()); voiceStream.current=null; }
     };
 
+    const cancelVoice = () => {
+      if(voiceTimer.current){ clearInterval(voiceTimer.current); voiceTimer.current=null; }
+      if(voiceMR.current && voiceMR.current.state!=="inactive"){
+        voiceMR.current.onstop = null;
+        voiceMR.current.stop();
+      }
+      if(voiceStream.current){ voiceStream.current.getTracks().forEach(t=>t.stop()); voiceStream.current=null; }
+      setVoiceRec(false); setVoiceSec(0);
+    };
+
     const aColor=uid=>{const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"];let h=0;for(let c of(uid||"x"))h=(h*31+c.charCodeAt(0))%cols.length;return cols[h];};
     const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
@@ -2576,7 +2586,7 @@
         <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><MessageCircle size={17} color="#fff"/></div>
-            <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Чат рыбаков</div><div style={{fontSize:10,color:C.accent}}>{onlineCount} онлайн · Ростовская обл.</div></div>
+            <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Чат рыбаков</div><div style={{fontSize:10,color:C.accent}}>Ростовская обл.</div></div>
           </div>
           {!user&&<button onClick={onLogin} style={{padding:"6px 12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>}
         </div>
@@ -2698,7 +2708,7 @@
           <div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",animation:"pulseGlow .8s ease infinite"}}/>
           <span style={{color:"#ef4444",fontSize:14,fontWeight:700,flex:1}}>🎤 Запись {fmt(voiceSec)}</span>
           <button onClick={stopVoice} style={{padding:"8px 18px",borderRadius:20,border:"none",background:"#ef4444",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Отправить</button>
-          <button onClick={()=>{stopVoice();}} style={{padding:"8px 14px",borderRadius:20,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.muted,fontSize:13,cursor:"pointer"}}>Отмена</button>
+          <button onClick={cancelVoice} style={{padding:"8px 14px",borderRadius:20,border:`1px solid ${C.border}`,background:C.surfaceHi,color:C.muted,fontSize:13,cursor:"pointer"}}>Отмена</button>
         </div>}
 
         {mediaUploading&&<div style={{padding:"8px 14px",background:C.accentDim,borderTop:`1px solid ${C.border}`,fontSize:12,color:C.accent,textAlign:"center"}}>Загружаем медиафайл...</div>}
@@ -3223,7 +3233,6 @@
       {Icon:Trophy,label:"Рейтинг рыбаков",nav:"leaderboard"},
       {Icon:Star,label:"Турниры",nav:"tournament"},
       {Icon:AlertCircle,label:"Telegram-бот @egerai_bot",href:"https://t.me/egerai_bot"},
-      {Icon:Gauge,label:"Настройки",href:"#"},
     ];
 
     return (
@@ -3249,7 +3258,6 @@
           )}
           <div style={{fontSize:12,color:C.muted,marginBottom:4}}>{user.email}</div>
           {userRank&&<div style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:12,background:"rgba(245,158,11,.12)",border:"1px solid rgba(245,158,11,.3)",fontSize:11,color:C.gold,fontWeight:700,marginBottom:4}}>🏆 #{userRank} в рейтинге месяца</div>}
-          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:6}}>{[1,2,3,4,5].map(i=><Star key={i} size={14} color={C.gold} fill={C.gold}/>)}</div>
         </div>
 
         <div style={{display:"flex",gap:10,marginBottom:14}}>
@@ -3846,7 +3854,7 @@
                   <span style={{color:C.accent,fontWeight:700,fontSize:15}}>Сделать фото</span>
                   <span style={{color:C.muted,fontSize:11}}>или выбрать из галереи</span>
                 </div>
-                <input ref={fileRef} type="file" accept="image/*" capture="camera" style={{display:"none"}} onChange={handleFile}/>
+                <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile}/>
                 <button onClick={()=>setStep(2)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 28px",color:C.muted,cursor:"pointer",fontSize:13}}>
                   Без фото — рыба отпущена
                 </button>
@@ -3990,12 +3998,13 @@
                   if(savedRec){
                     db.collection("catches").doc(user.uid).collection("records").doc(savedRec.id).update({isPublic:true}).catch(()=>{});
                     db.collection("reports").doc(savedRec.id).set({
-                      id:savedRec.id,userId:savedRec.userId,author:savedRec.userName||"Рыбак",
+                      id:savedRec.id,userId:savedRec.userId,
+                      displayName:savedRec.userName||"Рыбак",author:savedRec.userName||"Рыбак",
                       title:`${savedRec.fishName} ${(savedRec.weightGrams/1000).toFixed(1)} кг`,
                       fish:savedRec.fishName,weight:(savedRec.weightGrams/1000).toFixed(1),
                       location:savedRec.locationName,lat:savedRec.lat||null,lng:savedRec.lng||null,
                       photoUrls:savedRec.photoUrls||[],gearType:gearType||null,notes:notes||null,
-                      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+                      timestamp:firebase.firestore.FieldValue.serverTimestamp(),
                     }).catch(()=>{});
                   }
                   onClose();
@@ -4657,7 +4666,7 @@
           </div>
         </div>
         <div style={{flex:"0 0 42%",position:"relative",background:"#0a192f"}}>
-          <iframe key={`${centerLon}_${centerLat}_${zoom}`} src={mapSrc} style={{width:"100%",height:"100%",display:"block",border:"none"}} frameBorder="0" allowFullScreen loading="lazy"/>
+          <iframe key="yandex-bases-map" src={mapSrc} style={{width:"100%",height:"100%",display:"block",border:"none"}} frameBorder="0" allowFullScreen loading="lazy"/>
           {selected&&(
             <div style={{position:"absolute",bottom:8,left:8,right:8,background:"rgba(7,17,30,.93)",backdropFilter:"blur(12px)",border:`1px solid ${C.borderHi}`,borderRadius:12,padding:"8px 12px",display:"flex",alignItems:"center",gap:8}}>
               <div style={{flex:1,minWidth:0}}>
@@ -4771,7 +4780,7 @@
         {/* Embedded map */}
         <div style={{flex:"0 0 44%",position:"relative",background:"#0a192f"}}>
           <iframe
-            key={`${centerLon}_${centerLat}_${zoom}`}
+            key="yandex-shops-map"
             src={mapSrc}
             style={{width:"100%",height:"100%",display:"block",border:"none"}}
             frameBorder="0"
@@ -5229,12 +5238,13 @@
       );
     },[]);
 
-    // Запрос разрешения на уведомления
+    // Запрос разрешения на уведомления — только для авторизованных, с задержкой
     useEffect(()=>{
+      if(!user) return;
       if("Notification" in window && Notification.permission==="default"){
-        setTimeout(()=>Notification.requestPermission(), 4000);
+        setTimeout(()=>Notification.requestPermission(), 8000);
       }
-    },[]);
+    },[user]);
 
     // Слушатель новых сообщений чата
     useEffect(()=>{
@@ -5261,7 +5271,7 @@
     // Слушатель новых отчётов
     useEffect(()=>{
       let first=true;
-      const unsub=db.collection("reports").orderBy("createdAt","desc").limit(50)
+      const unsub=db.collection("reports").orderBy("timestamp","desc").limit(50)
         .onSnapshot(snap=>{
           if(first){ first=false; return; }
           snap.docChanges().filter(c=>c.type==="added").forEach(c=>{
@@ -5280,7 +5290,9 @@
       return unsub;
     },[]);
 
+    const prevTabRef = useRef("home");
     const goTab=(id)=>{
+      prevTabRef.current=tabRef.current;
       tabRef.current=id;
       setTab(id);
       if(id==="community") setUnreadChat(0);
@@ -5309,12 +5321,12 @@
         {showCatch && user && <CatchModal user={user} userLat={userLat} userLon={userLon} weather={weather} onClose={()=>setShowCatch(false)}/>}
         {showOnboarding && <OnboardingModal onDone={()=>{ localStorage.setItem("eger_onboarded","1"); setShowOnboarding(false); }}/>}
         {isOffline&&<div style={{position:"fixed",top:0,left:0,right:0,zIndex:9998,background:"rgba(239,68,68,.95)",color:"#fff",fontSize:12,fontWeight:700,textAlign:"center",padding:"8px 0",letterSpacing:.5,backdropFilter:"blur(8px)"}}>📵 Нет интернета{offlinePending>0?` — ${offlinePending} записей ожидают синхронизации`:" — офлайн-режим"}</div>}
-        {user && !showCatch && (
+        {!showCatch && (
           <button
             onTouchStart={onFabTouchStart}
             onTouchMove={onFabTouchMove}
             onTouchEnd={onFabTouchEnd}
-            onClick={fabDrag.current.moved?undefined:()=>{logEvent("catch_button_tapped");setShowCatch(true);}}
+            onClick={fabDrag.current.moved?undefined:()=>{logEvent("catch_button_tapped");if(user){setShowCatch(true);}else{setShowAuth(true);}}}
             style={{
               position:"fixed",
               ...(fabPos
@@ -5377,8 +5389,8 @@
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="news"      && <NewsScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
           {tab==="weather"   && <WeatherScreen weather={weather} weatherLoading={weatherLoading} onRefresh={loadWeather}/>}
-          {tab==="leaderboard"&&<LeaderboardScreen onBack={()=>goTab("profile")} user={user}/>}
-          {tab==="tournament" &&<TournamentScreen onBack={()=>goTab("profile")} user={user}/>}
+          {tab==="leaderboard"&&<LeaderboardScreen onBack={()=>goTab(prevTabRef.current||"profile")} user={user}/>}
+          {tab==="tournament" &&<TournamentScreen onBack={()=>goTab(prevTabRef.current||"profile")} user={user}/>}
           {tab==="profile"   && <ProfileScreen user={user} onLogin={()=>setShowAuth(true)} onNav={goTab}/>}
         </main>
 
