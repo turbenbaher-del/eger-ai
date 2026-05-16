@@ -516,27 +516,44 @@ function newsId(title) {
   return "n" + h.toString(36);
 }
 
+const GOOGLE = (q) => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ru&gl=RU&ceid=RU:ru`;
+const YANDEX = (q, lr = 39) => `https://news.yandex.ru/search.rss?text=${encodeURIComponent(q)}&lr=${lr}`;
+
+const NEWS_SOURCES = [
+  // ── Google News ───────────────────────────────────────────────
+  { url: GOOGLE("рыбалка Дон Ростов клёв улов рыболов"),                    src: "Google Новости" },
+  { url: GOOGLE("запрет нерест рыбалка Ростовская область 2026"),            src: "Google Новости" },
+  { url: GOOGLE("уровень воды Дон Ростов паводок гидрология"),               src: "Google Новости" },
+  { url: GOOGLE("рыбнадзор Росрыболовство Ростовская область новости"),      src: "Google Новости" },
+  { url: GOOGLE("рыбалка Цимлянское водохранилище улов 2026"),               src: "Google Новости" },
+  { url: GOOGLE("рыбалка Азовское море 2026 рыболов Ростов"),                src: "Google Новости" },
+  { url: GOOGLE("рыболовство Дон весна 2026 клёв судак лещ"),                src: "Google Новости" },
+  { url: GOOGLE("браконьерство Дон Ростовская область рыбоохрана"),          src: "Google Новости" },
+  // ── Яндекс Новости (lr=39 — Ростовская область) ──────────────
+  { url: YANDEX("рыбалка Ростов Дон улов клёв"),                            src: "Яндекс Новости" },
+  { url: YANDEX("рыболовство нерест запрет Ростовская область"),            src: "Яндекс Новости" },
+  { url: YANDEX("браконьер рыбнадзор Дон Ростов"),                         src: "Яндекс Новости" },
+  { url: YANDEX("уровень воды Дон половодье паводок"),                      src: "Яндекс Новости" },
+  { url: YANDEX("рыбалка Цимлянское водохранилище"),                        src: "Яндекс Новости" },
+];
+
 async function doFetchNews() {
-  const queries = [
-    "рыбалка Дон Ростов клёв улов рыболов",
-    "запрет нерест рыбалка Ростовская область 2026",
-    "уровень воды Дон Ростов паводок гидрология",
-    "рыбнадзор Росрыболовство Ростовская область новости",
-  ];
+  // Параллельно запрашиваем все источники
+  const results = await Promise.allSettled(
+    NEWS_SOURCES.map(async ({ url, src }) => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(14000), headers: { "User-Agent": "Mozilla/5.0" } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const xml = await res.text();
+      const items = parseRssItems(xml).map(it => ({ ...it, source: it.source || src }));
+      functions.logger.info(`RSS [${src}] "${url.slice(-50)}" → ${items.length}`);
+      return items;
+    })
+  );
 
   const raw = [];
-  for (const q of queries) {
-    try {
-      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ru&gl=RU&ceid=RU:ru`;
-      const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-      if (!res.ok) { functions.logger.warn(`RSS ${res.status} for: ${q}`); continue; }
-      const xml = await res.text();
-      const items = parseRssItems(xml);
-      raw.push(...items);
-      functions.logger.info(`RSS "${q}": ${items.length} items`);
-    } catch(e) {
-      functions.logger.warn(`RSS error "${q}":`, e.message);
-    }
+  for (const r of results) {
+    if (r.status === "fulfilled") raw.push(...r.value);
+    else functions.logger.warn("RSS source failed:", r.reason?.message);
   }
 
   // Deduplicate by id
@@ -573,10 +590,10 @@ async function doFetchNews() {
   await batch.commit();
   functions.logger.info(`fetchFishingNews: +${toAdd.length} items`);
 
-  // Prune oldest beyond 60
+  // Prune oldest beyond 120
   const allSnap = await db.collection("news").orderBy("timestamp", "asc").get();
-  if (allSnap.size > 60) {
-    const pruneSnap = allSnap.docs.slice(0, allSnap.size - 60);
+  if (allSnap.size > 120) {
+    const pruneSnap = allSnap.docs.slice(0, allSnap.size - 120);
     const pb = db.batch();
     pruneSnap.forEach(d => pb.delete(d.ref));
     await pb.commit();
@@ -588,7 +605,8 @@ async function doFetchNews() {
 
 exports.fetchFishingNews = functions
   .region("europe-west3")
-  .pubsub.schedule("0 */2 * * *")
+  .runWith({ timeoutSeconds: 120, memory: "256MB" })
+  .pubsub.schedule("*/20 * * * *")
   .timeZone("UTC")
   .onRun(async () => { await doFetchNews(); return null; });
 
@@ -601,8 +619,8 @@ exports.triggerFetchNews = functions
     const meta = await metaRef.get();
     if (meta.exists) {
       const last = meta.data().lastFetch?.toDate();
-      if (last && Date.now() - last.getTime() < 30 * 60 * 1000) {
-        return { skipped: true, message: "Обновление было менее 30 минут назад" };
+      if (last && Date.now() - last.getTime() < 5 * 60 * 1000) {
+        return { skipped: true, message: "Обновление было менее 5 минут назад" };
       }
     }
     const added = await doFetchNews();
