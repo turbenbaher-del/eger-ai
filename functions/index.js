@@ -446,7 +446,7 @@ ${catchesCtx}
     // Обновляем счётчик использования
     await usageRef.set({ date: today, count: todayCount + 1 }, { merge: true });
 
-    functions.logger.info(`askEger uid=${context.auth.uid} in=${result.usage?.input_tokens} out=${result.usage?.output_tokens}`);
+    functions.logger.info(`askEger uid=${context.auth?.uid || "anon"} in=${result.usage?.input_tokens} out=${result.usage?.output_tokens}`);
 
     // Сохраняем Q&A в базу знаний для обучения встроенного бота (fire-and-forget)
     const lastUserMsg = anthropicMessages[anthropicMessages.length - 1]?.content || "";
