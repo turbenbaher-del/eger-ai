@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Егерь ИИ — Обзор продукта для инвестора</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #f8fafc;
+    color: #1e293b;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .page {
+    max-width: 820px;
+    margin: 0 auto;
+    background: white;
+    padding: 56px 64px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 28px;
+    border-bottom: 2px solid #0f4c2a;
+    margin-bottom: 36px;
+  }
+  .logo-area { display: flex; align-items: center; gap: 16px; }
+  .logo-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, #1a8a50, #22d3ee);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+  .logo-text h1 { font-size: 22px; font-weight: 800; color: #0f4c2a; letter-spacing: -0.5px; }
+  .logo-text p { font-size: 11px; color: #64748b; font-weight: 500; margin-top: 1px; }
+  .badge {
+    background: #0f4c2a; color: white;
+    padding: 6px 14px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+  }
+
+  /* Section titles */
+  h2 {
+    font-size: 15px; font-weight: 700; color: #0f4c2a;
+    margin-bottom: 14px; margin-top: 32px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h2:first-of-type { margin-top: 0; }
+  h2::before {
+    content: ''; display: block;
+    width: 3px; height: 18px; border-radius: 2px;
+    background: linear-gradient(135deg, #1a8a50, #22d3ee);
+  }
+  h3 { font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 6px; margin-top: 14px; }
+
+  /* Tagline */
+  .tagline {
+    background: linear-gradient(135deg, #f0fdf4, #ecfeff);
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .tagline p { font-size: 14px; color: #166534; font-weight: 500; line-height: 1.7; }
+  .tagline strong { font-weight: 700; }
+
+  /* Two-column layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 4px; }
+
+  /* Feature cards */
+  .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
+  .feature-card {
+    border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .feature-card .icon { font-size: 20px; margin-bottom: 6px; }
+  .feature-card h3 { font-size: 12px; font-weight: 700; color: #0f4c2a; margin-bottom: 4px; margin-top: 0; }
+  .feature-card p { font-size: 11.5px; color: #475569; line-height: 1.55; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead tr { background: #f0fdf4; }
+  th { padding: 9px 12px; text-align: left; font-weight: 700; color: #166534; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { font-weight: 600; color: #1e293b; }
+  .check { color: #1a8a50; font-weight: 700; }
+
+  /* Metrics */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 4px; }
+  .metric-card {
+    border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 16px 14px; text-align: center;
+  }
+  .metric-value { font-size: 22px; font-weight: 800; color: #0f4c2a; line-height: 1; }
+  .metric-label { font-size: 10.5px; color: #64748b; margin-top: 5px; font-weight: 500; line-height: 1.4; }
+
+  /* Monetization */
+  .mono-list { list-style: none; }
+  .mono-list li {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; border-radius: 8px;
+    border: 1px solid #e2e8f0; margin-bottom: 8px;
+  }
+  .mono-list li .num {
+    background: #0f4c2a; color: white;
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+  }
+  .mono-list li .text strong { font-size: 12px; font-weight: 700; color: #1e293b; }
+  .mono-list li .text span { font-size: 11.5px; color: #64748b; display: block; margin-top: 1px; }
+
+  /* Stack pills */
+  .stack-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stack-item {
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 8px; padding: 10px 12px;
+  }
+  .stack-item .layer { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stack-item .tech { font-size: 12px; font-weight: 600; color: #1e293b; margin-top: 2px; }
+
+  /* Platforms */
+  .platform-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border: 1px solid #e2e8f0;
+    border-radius: 10px; margin-bottom: 10px;
+  }
+  .platform-icon { font-size: 22px; }
+  .platform-info strong { font-size: 13px; font-weight: 700; color: #1e293b; display: block; }
+  .platform-info span { font-size: 11px; color: #64748b; }
+  .platform-tag {
+    margin-left: auto; background: #f0fdf4; color: #166534;
+    padding: 3px 10px; border-radius: 20px; font-size: 10.5px; font-weight: 600;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 40px; padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .footer p { font-size: 10.5px; color: #94a3b8; }
+  .footer strong { color: #64748b; }
+
+  /* Print */
+  @media print {
+    body { background: white; }
+    .page { padding: 32px 40px; max-width: 100%; }
+    h2 { margin-top: 22px; }
+    .feature-grid { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-icon">🎣</div>
+      <div class="logo-text">
+        <h1>Егерь ИИ</h1>
+        <p>Цифровой помощник рыболова</p>
+      </div>
+    </div>
+    <div class="badge">Инвестиционный обзор · 2026</div>
+  </div>
+
+  <!-- Tagline -->
+  <div class="tagline">
+    <p><strong>Егерь ИИ</strong> — экосистема для рыболовного сообщества Ростовской области и бассейна реки Дон. Объединяет прогноз клёва, интерактивные карты, новости в реальном времени, сообщество рыболовов и push-уведомления в одном мобильном приложении и Telegram-боте.</p>
+  </div>
+
+  <!-- Platforms -->
+  <h2>Платформы</h2>
+  <div class="platform-row">
+    <div class="platform-icon">🌐</div>
+    <div class="platform-info">
+      <strong>Progressive Web App</strong>
+      <span>turbenbaher-del.github.io/eger-ai — устанавливается на главный экран, работает офлайн</span>
+    </div>
+    <div class="platform-tag">GitHub Pages</div>
+  </div>
+  <div class="platform-row">
+    <div class="platform-icon">✈️</div>
+    <div class="platform-info">
+      <strong>Telegram-бот @egerai_bot</strong>
+      <span>Прогнозы, отчёты, рассылки, мониторинг каналов и новостей</span>
+    </div>
+    <div class="platform-tag">Railway</div>
+  </div>
+
+  <!-- Features -->
+  <h2>Функциональность</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="icon">🌤</div>
+      <h3>Прогноз клёва</h3>
+      <p>Реальная погода через Open-Meteo API. Автоопределение геолокации. Индекс клёва 1–10 с советами по снастям и времени ловли. Персонализированный прогноз по месту пользователя.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🗺</div>
+      <h3>Интерактивные карты</h3>
+      <p>Яндекс Карты с 10 точками рыбалки и 12 магазинами Ростовской области. Сортировка по расстоянию. Геопозиция пользователя. Детальные карточки с адресами и телефонами.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">💬</div>
+      <h3>Сообщество (чат)</h3>
+      <p>Чат в реальном времени через Firestore. Фото и видео-кружочки. Ответы с цитированием, @-упоминания, эмодзи-реакции. Редактирование и удаление сообщений.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📰</div>
+      <h3>Новости в реальном времени</h3>
+      <p>Бот парсит Google News RSS каждые 10 минут и сохраняет в Firestore. Сайт получает обновления мгновенно через onSnapshot. Анимация появления новых материалов.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔔</div>
+      <h3>Push-уведомления</h3>
+      <p>Firebase Cloud Messaging. Уведомления приходят даже при закрытом браузере через Service Worker. Подписка одной кнопкой. Автоочистка недействительных токенов.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📝</div>
+      <h3>Отчёты рыболовов</h3>
+      <p>UGC-лента уловов с фото (Firebase Storage). Публикация через сайт и Telegram-бот. Автоматический сбор отчётов из мониторируемых Telegram-каналов.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🤖</div>
+      <h3>Telegram-бот</h3>
+      <p>Прогноз клёва по геолокации. Утренние рассылки подписчикам. Диалог для публикации отчётов. Мониторинг рыболовных каналов. Ближайшие магазины и точки ловли.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">📡</div>
+      <h3>ИИ-ассистент</h3>
+      <p>Встроенный чат-помощник с советами по снастям, наживке и технике ловли конкретных видов рыб. Рекомендации точек лова на основе геолокации пользователя.</p>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <h2>Ключевые метрики продукта</h2>
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-value">3 сек</div>
+      <div class="metric-label">до первого прогноза клёва</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">0</div>
+      <div class="metric-label">регистрация для базового функционала</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">10 мин</div>
+      <div class="metric-label">интервал обновления новостей</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value">~$0</div>
+      <div class="metric-label">стоимость инфраструктуры сейчас</div>
+    </div>
+  </div>
+
+  <!-- Tech stack -->
+  <h2>Технический стек</h2>
+  <div class="stack-grid">
+    <div class="stack-item"><div class="layer">Frontend</div><div class="tech">React 18 · Firebase v9 SDK</div></div>
+    <div class="stack-item"><div class="layer">Карты</div><div class="tech">Yandex Maps API 2.1</div></div>
+    <div class="stack-item"><div class="layer">Backend</div><div class="tech">Python · python-telegram-bot</div></div>
+    <div class="stack-item"><div class="layer">База данных</div><div class="tech">Firebase Firestore (real-time)</div></div>
+    <div class="stack-item"><div class="layer">Хранилище</div><div class="tech">Firebase Storage</div></div>
+    <div class="stack-item"><div class="layer">Push</div><div class="tech">Firebase Cloud Messaging</div></div>
+    <div class="stack-item"><div class="layer">Авторизация</div><div class="tech">Firebase Auth (Google + анон.)</div></div>
+    <div class="stack-item"><div class="layer">Погода</div><div class="tech">Open-Meteo API (бесплатный)</div></div>
+    <div class="stack-item"><div class="layer">Хостинг</div><div class="tech">GitHub Pages · Railway</div></div>
+  </div>
+
+  <!-- Monetization -->
+  <h2>Потенциал монетизации</h2>
+  <ul class="mono-list">
+    <li>
+      <div class="num">1</div>
+      <div class="text"><strong>Реклама и партнёрства</strong><span>Таргетированная реклама рыболовных магазинов, производителей снастей и наживки прямо в ленте новостей и на картах</span></div>
+    </li>
+    <li>
+      <div class="num">2</div>
+      <div class="text"><strong>Premium-подписка</strong><span>Расширенный прогноз на 7 дней, эксклюзивные точки ловли, история уловов, отключение рекламы</span></div>
+    </li>
+    <li>
+      <div class="num">3</div>
+      <div class="text"><strong>Маркетплейс</strong><span>Встроенная продажа снастей и наживки через приложение, партнёрские комиссии с магазинами</span></div>
+    </li>
+    <li>
+      <div class="num">4</div>
+      <div class="text"><strong>B2B — белый лейбл</strong><span>Тиражирование платформы для рыболовных клубов, турбаз и рыбхозяйств Ростовской области</span></div>
+    </li>
+    <li>
+      <div class="num">5</div>
+      <div class="text"><strong>Масштабирование по регионам</strong><span>Модель легко тиражируется на Астрахань, Волгу, Краснодар и другие рыболовные регионы России</span></div>
+    </li>
+  </ul>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p><strong>Егерь ИИ</strong> · turbenbaher-del.github.io/eger-ai · @egerai_bot</p>
+    <p>Конфиденциально · 2026</p>
+  </div>
+
+</div>
+</body>
+</html>

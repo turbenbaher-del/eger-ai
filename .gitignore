@@ -1,3 +1,5 @@
 serve.ps1
 EgerAI.jsx
 EgerAI_artifact.jsx
+functions/node_modules/
+node_modules/
