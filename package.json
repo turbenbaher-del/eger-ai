@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build && node scripts/copy-static.js",
+    "preview": "vite preview",
+    "deploy": "npm run build && firebase deploy --only hosting --project eger-ai"
   },
   "dependencies": {
     "firebase": "9.22.2",

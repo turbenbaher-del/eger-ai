@@ -3183,7 +3183,7 @@ import 'firebase/compat/functions';
     const requestNotif=async()=>{
       if(!("serviceWorker" in navigator)) return;
       try{
-        const reg=await navigator.serviceWorker.register('/eger-ai/firebase-messaging-sw.js');
+        const reg=await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         const token=await messaging.getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
         if(token){
           await db.collection("fcm_tokens").doc(token).set({
@@ -3482,7 +3482,7 @@ import 'firebase/compat/functions';
       }
       if (!("serviceWorker" in navigator)) return;
       try {
-        const reg = await navigator.serviceWorker.register('/eger-ai/firebase-messaging-sw.js');
+        const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         const perm = await Notification.requestPermission();
         if (perm !== "granted") return;
         const token = await messaging.getToken({vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
@@ -3964,7 +3964,7 @@ import 'firebase/compat/functions';
           const bd = BADGE_DEFS.find(b=>b.id===id);
           logEvent("badge_unlocked",{badge_id:id});
           if (bd && "Notification" in window && Notification.permission==="granted") {
-            new Notification(`${bd.emoji} Новый значок: ${bd.name}`,{body:bd.desc,icon:"https://turbenbaher-del.github.io/eger-ai/fish-icon.png"});
+            new Notification(`${bd.emoji} Новый значок: ${bd.name}`,{body:bd.desc,icon:"https://eger-ai.app/icons/icon-192.png"});
           }
         }
       }
@@ -5657,7 +5657,7 @@ import 'firebase/compat/functions';
             if("Notification" in window && Notification.permission==="granted" && !document.hasFocus()){
               new Notification("💬 Новое сообщение в чате",{
                 body:`${d.displayName||"Рыбак"}: ${d.text||"прикрепил медиафайл"}`,
-                icon:"https://turbenbaher-del.github.io/eger-ai/fish-icon.png",
+                icon:"https://eger-ai.app/icons/icon-192.png",
                 tag:"chat-msg",
               });
             }
@@ -5679,7 +5679,7 @@ import 'firebase/compat/functions';
             if("Notification" in window && Notification.permission==="granted" && !document.hasFocus()){
               new Notification("🐟 Новый отчёт о рыбалке",{
                 body:`${d.author||"Рыбак"}: ${d.title||"добавил отчёт"}`,
-                icon:"https://turbenbaher-del.github.io/eger-ai/fish-icon.png",
+                icon:"https://eger-ai.app/icons/icon-192.png",
                 tag:"report-new",
               });
             }

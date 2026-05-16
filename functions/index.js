@@ -173,7 +173,7 @@ exports.sendPushWithRateLimit = functions
 
     const msg = {
       notification: { title, body },
-      data: { url: url || "https://turbenbaher-del.github.io/eger-ai/" },
+      data: { url: url || "https://eger-ai.app/" },
       tokens,
     };
 
@@ -235,7 +235,7 @@ exports.notifyNearbyCatch = functions
 
     const msg = {
       notification: { title, body: `${report.author || "Рыбак"}: ${report.fish || "улов"} ${report.weight ? report.weight + " кг" : ""}` },
-      data: { url: "https://turbenbaher-del.github.io/eger-ai/", type: "nearby_catch" },
+      data: { url: "https://eger-ai.app/", type: "nearby_catch" },
       tokens: tokens.slice(0, 500),
     };
 
@@ -266,7 +266,7 @@ exports.pushWeekendForecast = functions
 
     const msg = {
       notification: { title: "🎣 Прогноз на выходные", body: biteText },
-      data: { url: "https://turbenbaher-del.github.io/eger-ai/", type: "weekend_forecast" },
+      data: { url: "https://eger-ai.app/", type: "weekend_forecast" },
       tokens: tokens.slice(0, 500),
     };
     const r = await admin.messaging().sendEachForMulticast(msg);
@@ -308,7 +308,7 @@ exports.pushFishingReminder = functions
         title: "🎣 Давно не рыбачили?",
         body: "Самое время записать новый улов или проверить прогноз клёва!"
       },
-      data: { url: "https://turbenbaher-del.github.io/eger-ai/", type: "fishing_reminder" },
+      data: { url: "https://eger-ai.app/", type: "fishing_reminder" },
       tokens: tokens.slice(0, 500),
     };
     const r = await admin.messaging().sendEachForMulticast(msg);

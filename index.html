@@ -10,11 +10,11 @@
   <meta name="apple-mobile-web-app-title" content="Егерь">
   <meta name="application-name" content="Егерь ИИ">
   <meta name="msapplication-TileColor" content="#07111e">
-  <link rel="manifest" href="/eger-ai/manifest.json">
-  <link rel="apple-touch-icon" href="/eger-ai/icons/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/eger-ai/icons/icon-192.png">
-  <link rel="icon" type="image/png" sizes="96x96" href="/eger-ai/icons/icon-96.png">
-  <link rel="icon" type="image/png" sizes="48x48" href="/eger-ai/icons/icon-48.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png">
   <title>Егерь ИИ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap">
@@ -38,7 +38,6 @@
     @keyframes textSwap { 0%{opacity:0;transform:translateY(6px)} 8%,92%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-6px)} }
     @keyframes fabPulse { 0%,100%{transform:scale(1);box-shadow:0 4px 20px rgba(26,138,80,.5)} 50%{transform:scale(1.06);box-shadow:0 6px 32px rgba(46,204,113,.75)} }
   </style>
-  <script type="module" crossorigin src="/eger-ai/assets/index-BXD-rvsL.js"></script>
 </head>
 <body>
 <div id="splash" style="position:fixed;inset:0;background:#07111e;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;transition:opacity .5s ease;pointer-events:none">
@@ -56,5 +55,6 @@
   });
 </script>
 <div id="root"></div>
+<script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
