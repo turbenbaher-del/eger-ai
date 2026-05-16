@@ -1078,12 +1078,12 @@
     const reactions = msg.reactions||{};
     const hasReactions = Object.keys(reactions).length>0;
     const ticks = isUser?(msg.read?"✓✓":"✓"):null;
-    const tickCol = msg.read?"#22d3ee":"rgba(7,17,30,0.5)";
+    const tickCol = msg.read?"#22d3ee":"rgba(255,255,255,0.6)";
     const showAvatar = !isUser && !isPrevSame;
 
     return (
       <div style={{position:"relative",marginBottom:isNextSame?2:8}}>
-        {(menuOpen||reactOpen)&&<div style={{position:"fixed",inset:0,zIndex:200}} onClick={()=>{setMenuOpen(false);setReactOpen(false);}}/>}
+        {(menuOpen||reactOpen)&&<div style={{position:"fixed",top:0,right:0,bottom:0,left:0,zIndex:200}} onClick={()=>{setMenuOpen(false);setReactOpen(false);}}/>}
         {swipeX>12&&<div style={{position:"absolute",left:isUser?"auto":-28,right:isUser?-28:"auto",top:"50%",transform:"translateY(-50%)",fontSize:16,opacity:Math.min(swipeX/52,1),pointerEvents:"none",zIndex:1}}>↩️</div>}
 
         <div style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",transform:`translateX(${swipeX}px)`,transition:swipeX===0?"transform .18s ease":"none",animation:"fadeUp .25s ease"}}
@@ -2288,7 +2288,7 @@
       } catch(e) { setSaving(false); }
     };
     return (
-      <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"flex-end"}}>
+      <div style={{position:"fixed",top:0,right:0,bottom:0,left:0,zIndex:200,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"flex-end"}}>
         <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1f35",borderRadius:"24px 24px 0 0",padding:"20px 16px 40px"}}>
           <div style={{display:"flex",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:17,fontWeight:800,color:C.text,flex:1}}>📍 Предложить точку</div>
@@ -4594,7 +4594,7 @@
     };
 
     return (
-      <div style={{position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"flex-end"}}>
+      <div style={{position:"fixed",top:0,right:0,bottom:0,left:0,zIndex:200,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"flex-end"}}>
         <div style={{width:"100%",maxWidth:430,margin:"0 auto",background:"#0d1f35",borderRadius:"24px 24px 0 0",maxHeight:"90vh",overflowY:"auto",padding:"20px 16px 40px"}}>
           <div style={{display:"flex",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:17,fontWeight:800,color:C.text,flex:1}}>📝 Добавить вручную</div>
