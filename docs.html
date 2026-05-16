@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Документация Егерь ИИ</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--bg:#07111e;--s:#0e1f34;--s2:#152840;--a:#2ecc71;--c:#22d3ee;--g:#f59e0b;--r:#ef4444;--t:#e8f4f0;--m:rgba(232,244,240,.5);--b:rgba(255,255,255,.08);--br:14px;}
+body{background:var(--bg);color:var(--t);font-family:'Segoe UI',system-ui,sans-serif;display:flex;min-height:100vh;}
+/* sidebar */
+#sidebar{width:260px;flex-shrink:0;background:var(--s);border-right:1px solid var(--b);padding:24px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+#sidebar .logo{padding:0 20px 20px;border-bottom:1px solid var(--b);margin-bottom:16px;}
+#sidebar .logo h2{font-size:20px;font-weight:900;}
+#sidebar .logo .sub{font-size:11px;color:var(--m);margin-top:3px;}
+.nav-section{padding:8px 20px 4px;font-size:10px;letter-spacing:2px;color:rgba(232,244,240,.25);font-weight:700;text-transform:uppercase;}
+.nav-link{display:block;padding:7px 20px;font-size:13px;color:var(--m);text-decoration:none;cursor:pointer;transition:.15s;border-left:3px solid transparent;}
+.nav-link:hover{color:var(--t);background:rgba(255,255,255,.04);}
+.nav-link.active{color:var(--a);border-left-color:var(--a);background:rgba(46,204,113,.06);}
+/* main */
+#main{flex:1;padding:40px 48px 80px;max-width:860px;}
+/* hero */
+.hero{background:linear-gradient(135deg,var(--s),var(--s2));border:1px solid var(--b);border-radius:20px;padding:36px;margin-bottom:36px;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 80%,rgba(46,204,113,.06),transparent 60%);}
+.hero h1{font-size:36px;font-weight:900;letter-spacing:-1px;}
+.hero p{color:var(--m);margin-top:10px;font-size:15px;line-height:1.6;}
+.hero .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;}
+.badge{display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge.g{background:rgba(46,204,113,.12);color:var(--a);border:1px solid rgba(46,204,113,.3);}
+.badge.c{background:rgba(34,211,238,.12);color:var(--c);border:1px solid rgba(34,211,238,.3);}
+.badge.o{background:rgba(245,158,11,.12);color:var(--g);border:1px solid rgba(245,158,11,.3);}
+/* section headers */
+h2{font-size:26px;font-weight:900;margin:40px 0 6px;color:var(--t);}
+h2 .accent{color:var(--a);}
+.section-sub{font-size:14px;color:var(--m);margin-bottom:20px;line-height:1.6;}
+h3{font-size:17px;font-weight:800;margin:28px 0 10px;color:var(--t);}
+h4{font-size:14px;font-weight:700;margin:16px 0 6px;color:var(--t);}
+p{font-size:14px;color:var(--m);line-height:1.7;margin-bottom:10px;}
+/* cards */
+.grid{display:grid;gap:12px;margin:12px 0 20px;}
+.grid.c2{grid-template-columns:1fr 1fr;}
+.grid.c3{grid-template-columns:1fr 1fr 1fr;}
+.card{background:var(--s);border:1px solid var(--b);border-radius:var(--br);padding:18px;}
+.card.green{border-top:3px solid var(--a);}
+.card.cyan{border-top:3px solid var(--c);}
+.card.gold{border-top:3px solid var(--g);}
+.card h4{font-size:13px;font-weight:800;margin:0 0 6px;}
+.card p{font-size:12.5px;color:var(--m);line-height:1.55;margin:0;}
+.card .icon{font-size:26px;margin-bottom:10px;}
+/* steps */
+.steps{display:flex;flex-direction:column;gap:12px;margin:14px 0;}
+.step{display:flex;gap:14px;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px 16px;}
+.step-num{width:28px;height:28px;border-radius:50%;background:var(--a);color:#07111e;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.step-body h4{font-size:13px;font-weight:800;margin:0 0 3px;}
+.step-body p{font-size:12.5px;color:var(--m);margin:0;line-height:1.5;}
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0 20px;}
+th{background:var(--s2);color:var(--a);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:9px 12px;text-align:left;border-bottom:1px solid var(--b);}
+td{padding:9px 12px;border-bottom:1px solid var(--b);color:var(--m);vertical-align:top;}
+td:first-child{color:var(--t);font-weight:600;white-space:nowrap;}
+tr:hover td{background:rgba(255,255,255,.02);}
+/* feature block */
+.feature{display:flex;gap:12px;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:16px;margin-bottom:10px;}
+.feature .fi{font-size:28px;flex-shrink:0;line-height:1;margin-top:2px;}
+.feature h4{font-size:14px;font-weight:800;margin:0 0 4px;}
+.feature p{font-size:12.5px;color:var(--m);margin:0;line-height:1.55;}
+/* tip box */
+.tip{background:rgba(46,204,113,.07);border:1px solid rgba(46,204,113,.2);border-radius:12px;padding:14px 16px;margin:12px 0;font-size:13px;color:var(--m);line-height:1.6;}
+.tip strong{color:var(--a);}
+.warn{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:12px;padding:14px 16px;margin:12px 0;font-size:13px;color:var(--m);line-height:1.6;}
+.warn strong{color:var(--g);}
+.danger{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:12px;padding:14px 16px;margin:12px 0;font-size:13px;color:var(--m);line-height:1.6;}
+.danger strong{color:var(--r);}
+/* role header */
+.role-header{background:linear-gradient(135deg,var(--s),var(--s2));border:1px solid var(--b);border-radius:16px;padding:24px;margin:32px 0 20px;display:flex;gap:16px;align-items:center;}
+.role-header .icon{font-size:40px;}
+.role-header h2{font-size:24px;margin:0;color:var(--a);}
+.role-header p{font-size:13px;color:var(--m);margin:4px 0 0;line-height:1.5;}
+/* divider */
+hr{border:none;border-top:1px solid var(--b);margin:36px 0;}
+/* inline code */
+code{background:rgba(255,255,255,.08);border:1px solid var(--b);border-radius:6px;padding:1px 6px;font-size:12px;font-family:monospace;color:var(--c);}
+@media(max-width:700px){
+  #sidebar{display:none;}
+  #main{padding:20px 16px 60px;}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="logo">
+    <h2>🎣 Егерь ИИ</h2>
+    <div class="sub">Документация v2.0 · Май 2026</div>
+  </div>
+  <div class="nav-section">Введение</div>
+  <a class="nav-link" href="#overview">Обзор приложения</a>
+  <a class="nav-link" href="#features">Полный список функций</a>
+  <a class="nav-link" href="#tech">Технический стек</a>
+  <div class="nav-section">Инструкция пользователя</div>
+  <a class="nav-link" href="#start">Первые шаги</a>
+  <a class="nav-link" href="#home">Главный экран</a>
+  <a class="nav-link" href="#chat">ИИ-чат</a>
+  <a class="nav-link" href="#community">Сообщество</a>
+  <a class="nav-link" href="#news">Новости и отчёты</a>
+  <a class="nav-link" href="#profile">Профиль и дневник</a>
+  <a class="nav-link" href="#pwa">Установка PWA</a>
+  <a class="nav-link" href="#notifications">Push-уведомления</a>
+  <div class="nav-section">Инструкция администратора</div>
+  <a class="nav-link" href="#admin-firebase">Firebase Console</a>
+  <a class="nav-link" href="#admin-functions">Cloud Functions</a>
+  <a class="nav-link" href="#admin-rules">Правила Firestore</a>
+  <a class="nav-link" href="#admin-bots">Управление ботами</a>
+  <a class="nav-link" href="#admin-deploy">Деплой</a>
+  <div class="nav-section">Инструкция модератора</div>
+  <a class="nav-link" href="#mod-overview">Обязанности</a>
+  <a class="nav-link" href="#mod-messages">Модерация чата</a>
+  <a class="nav-link" href="#mod-reports">Модерация отчётов</a>
+  <a class="nav-link" href="#mod-users">Работа с пользователями</a>
+  <a class="nav-link" href="#mod-tools">Инструменты</a>
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="main">
+
+<!-- HERO -->
+<div class="hero" id="overview">
+  <div style="font-size:11px;letter-spacing:2px;color:var(--a);font-weight:700;margin-bottom:12px;">ДОКУМЕНТАЦИЯ ПРИЛОЖЕНИЯ</div>
+  <h1>🎣 Егерь ИИ</h1>
+  <p>Первый российский ИИ-помощник рыбака — прогноз клёва, дневник уловов, сообщество рыбаков и маркетплейс снастей в одном PWA-приложении. Работает на любом смартфоне без установки из App Store.</p>
+  <div class="badges">
+    <span class="badge g">PWA · без App Store</span>
+    <span class="badge c">Firebase · Realtime</span>
+    <span class="badge o">React 18 · Babel</span>
+    <span class="badge g">Claude AI API</span>
+    <span class="badge c">Яндекс.Карты</span>
+    <span class="badge o">Open-Meteo Weather</span>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<h2 id="features">Полный список <span class="accent">функций</span></h2>
+<div class="section-sub">Все возможности приложения в текущей версии v2.0.0.</div>
+
+<div class="grid c2">
+  <div class="feature"><div class="fi">🌤️</div><div><h4>Прогноз клёва</h4><p>Алгоритм по давлению, ветру, температуре воды, сезону и фазе луны. Оценка 1–10 с дуговым индикатором BiteArc.</p></div></div>
+  <div class="feature"><div class="fi">🤖</div><div><h4>ИИ-советник (Claude API)</h4><p>Отвечает на любой вопрос о рыбалке. Fallback на локальный бот с 25+ интентами при отсутствии интернета.</p></div></div>
+  <div class="feature"><div class="fi">💬</div><div><h4>Telegram-like чат</h4><p>Reply, реакции, свайп для ответа, лонг-пресс меню, группировка сообщений, разделители дат, тики прочтения.</p></div></div>
+  <div class="feature"><div class="fi">🔍</div><div><h4>Поиск по чату</h4><p>Живой поиск с подсветкой совпадений в тексте, именах, никнеймах. Счётчик результатов.</p></div></div>
+  <div class="feature"><div class="fi">💌</div><div><h4>Личные сообщения (DM)</h4><p>Нажми на имя пользователя → открывается приватный чат в реальном времени через Firestore.</p></div></div>
+  <div class="feature"><div class="fi">📸</div><div><h4>Медиа в чатах</h4><p>Фото из галереи, видео-кружки (60 сек), голосовые сообщения, загрузка в Firebase Storage.</p></div></div>
+  <div class="feature"><div class="fi">📍</div><div><h4>Точки рыбалки</h4><p>60+ GPS-координат для 18 видов рыб. Сортировка по расстоянию от пользователя. Яндекс.Карты.</p></div></div>
+  <div class="feature"><div class="fi">🗺️</div><div><h4>Интерактивная карта</h4><p>Яндекс.Карты с маркерами рыбных мест. Кластеризация, уровни воды, слои.</p></div></div>
+  <div class="feature"><div class="fi">📰</div><div><h4>Новости в реальном времени</h4><p>Firestore onSnapshot + боты публикуют из Telegram-каналов. Анимация новых статей.</p></div></div>
+  <div class="feature"><div class="fi">📝</div><div><h4>Отчёты рыбаков</h4><p>Публикация отчётов с фото, местом, видом рыбы. Лайки, редактирование, удаление.</p></div></div>
+  <div class="feature"><div class="fi">🔔</div><div><h4>Push-уведомления</h4><p>FCM через ServiceWorker. Уведомления о новостях, хорошем клёве. Работает в фоне.</p></div></div>
+  <div class="feature"><div class="fi">🏆</div><div><h4>Рейтинг (Leaderboard)</h4><p>Еженедельный и месячный рейтинг по весу улова. Автоматически обновляется Cloud Functions.</p></div></div>
+  <div class="feature"><div class="fi">🎯</div><div><h4>Турниры</h4><p>Онлайн-соревнования с регистрацией. Таблица участников в реальном времени.</p></div></div>
+  <div class="feature"><div class="fi">🎖️</div><div><h4>Значки достижений</h4><p>Автоматическое начисление через Cloud Functions за уловы, активность, рекорды.</p></div></div>
+  <div class="feature"><div class="fi">📓</div><div><h4>Дневник уловов</h4><p>Личная статистика: дата, вид рыбы, вес, фото, место. Только владелец видит свои записи.</p></div></div>
+  <div class="feature"><div class="fi">🌊</div><div><h4>Уровень воды</h4><p>Данные по рекам Ростовской области в реальном времени. Интеграция с Росгидромет.</p></div></div>
+  <div class="feature"><div class="fi">🌙</div><div><h4>Лунный календарь</h4><p>Текущая фаза луны с советом по клёву. Алгоритм с эталонным новолунием 2024-01-11.</p></div></div>
+  <div class="feature"><div class="fi">📅</div><div><h4>Сезонный календарь</h4><p>Советы по 12 месяцам: какая рыба активна, ограничения нереста, лучшее время суток.</p></div></div>
+  <div class="feature"><div class="fi">🛒</div><div><h4>Ссылки на снасти</h4><p>ИИ рекомендует снасть → автоматические ссылки на Wildberries, Ozon, Яндекс Маркет.</p></div></div>
+  <div class="feature"><div class="fi">📶</div><div><h4>Offline-режим</h4><p>ServiceWorker кэширует оболочку. Firestore persistence — работа без интернета.</p></div></div>
+</div>
+
+<!-- TECH STACK -->
+<h2 id="tech">Технический <span class="accent">стек</span></h2>
+<table>
+  <thead><tr><th>Слой</th><th>Технология</th><th>Версия/Детали</th></tr></thead>
+  <tbody>
+    <tr><td>Frontend Framework</td><td>React + Babel Standalone</td><td>React 18 UMD, Babel 7.23.3, JSX в браузере</td></tr>
+    <tr><td>База данных</td><td>Cloud Firestore</td><td>Firebase v9 compat, offline persistence, realtime</td></tr>
+    <tr><td>Авторизация</td><td>Firebase Auth</td><td>Google Sign-In, onAuthStateChanged</td></tr>
+    <tr><td>Медиафайлы</td><td>Firebase Storage</td><td>Фото, видео, голосовые сообщения</td></tr>
+    <tr><td>Push-уведомления</td><td>FCM (Firebase Messaging)</td><td>VAPID, ServiceWorker, background messages</td></tr>
+    <tr><td>Серверная логика</td><td>Cloud Functions v1</td><td>Node.js, region: europe-west3</td></tr>
+    <tr><td>AI-провайдер</td><td>Anthropic Claude API</td><td>Вызов через httpsCallable("callClaude")</td></tr>
+    <tr><td>Погода</td><td>Open-Meteo API</td><td>Бесплатно, 7 дней, почасовой прогноз</td></tr>
+    <tr><td>Карты</td><td>Яндекс.Карты JS API 2.1</td><td>Ключ: 9076cba5-..., полный пакет</td></tr>
+    <tr><td>Аналитика</td><td>Firebase Analytics</td><td>logEvent() на ключевых действиях</td></tr>
+    <tr><td>Хостинг</td><td>GitHub Pages</td><td>github.com/turbenbaher-del/eger-ai, /eger-ai/</td></tr>
+    <tr><td>CI/CD</td><td>Git → GitHub Pages</td><td>git push origin master</td></tr>
+    <tr><td>Шрифты</td><td>Google Fonts</td><td>Bebas Neue (заголовки), Nunito 400/600/700/800</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<!-- ═══════════ ИНСТРУКЦИЯ ПОЛЬЗОВАТЕЛЯ ═══════════ -->
+<div class="role-header">
+  <div class="icon">👤</div>
+  <div>
+    <h2 style="margin:0;">Инструкция пользователя</h2>
+    <p>Для всех рыбаков, использующих Егерь ИИ</p>
+  </div>
+</div>
+
+<!-- ПЕРВЫЕ ШАГИ -->
+<h3 id="start">Первые шаги</h3>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>Открой приложение</h4>
+      <p>Перейди на <strong>https://turbenbaher-del.github.io/eger-ai/</strong> в браузере на телефоне или компьютере. Приложение загрузится автоматически — установка не нужна.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Войди через Google</h4>
+      <p>Нажми на иконку профиля (👤) внизу → кнопка «Войти через Google». Используй любой Google-аккаунт. Авторизация занимает 5 секунд.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>Разреши геолокацию</h4>
+      <p>Браузер запросит доступ к местоположению — нажми «Разрешить». Это нужно чтобы ИИ находил ближайшие точки рыбалки к тебе и сортировал их по расстоянию.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h4>Установи приложение (необязательно)</h4>
+      <p>Chrome/Edge покажет кнопку «Установить» или «Добавить на главный экран». После этого приложение работает как нативное — без браузерной строки, в офлайн-режиме.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ГЛАВНЫЙ ЭКРАН -->
+<h3 id="home">Главный экран — Прогноз</h3>
+<p>Главный экран — твоя сводка на сегодня. Здесь собраны все данные которые нужны перед выездом.</p>
+
+<div class="grid c2">
+  <div class="card green">
+    <div class="icon">🎯</div>
+    <h4>Прогноз клёва (1–10)</h4>
+    <p>Оценка рассчитывается автоматически по давлению, ветру, температуре воды, сезону и фазе луны. <strong style="color:var(--a)">8–10 = отличный клёв</strong>, 5–7 = хороший, ниже 5 — лучше перенести.</p>
+  </div>
+  <div class="card cyan">
+    <div class="icon">🌡️</div>
+    <h4>Текущая погода</h4>
+    <p>Температура воздуха и воды, ветер, давление, влажность. Обновляется каждые 15 минут с Open-Meteo API. Давление 758–765 мм рт.ст. — лучший диапазон для клёва.</p>
+  </div>
+  <div class="card gold">
+    <div class="icon">🌙</div>
+    <h4>Фаза луны</h4>
+    <p>Текущая фаза с советом: полнолуние = мирная рыба активна весь день, новолуние = хищник ночью. Обновляется в реальном времени.</p>
+  </div>
+  <div class="card green">
+    <div class="icon">📊</div>
+    <h4>График давления</h4>
+    <p>Sparkline-график давления по часам. Синяя точка — текущий момент. Резкие перепады = плохой клёв, стабильность = хорошо.</p>
+  </div>
+</div>
+
+<div class="tip"><strong>Совет:</strong> Листай вниз на главном экране — там 7-дневный прогноз с иконками погоды и вероятностью осадков. Идеально для планирования выезда на выходные.</div>
+
+<!-- ИИ-ЧАТ -->
+<h3 id="chat">ИИ-чат — советник Егерь</h3>
+<p>Нажми вкладку <strong>🤖 ИИ</strong> внизу. Егерь отвечает на любой вопрос о рыбалке.</p>
+
+<h4>Что умеет ИИ-советник:</h4>
+<table>
+  <thead><tr><th>Спроси</th><th>Получишь</th></tr></thead>
+  <tbody>
+    <tr><td>«Где ловить леща?»</td><td>GPS-точки с ссылкой на Яндекс.Карты, расстояние от тебя</td></tr>
+    <tr><td>«Клюёт сегодня?»</td><td>Прогноз клёва 1–10 с анализом погоды, луны и сезона</td></tr>
+    <tr><td>«Как ловить щуку осенью?»</td><td>Снасти, насадки, техника, лучшие часы, точки</td></tr>
+    <tr><td>«Какое удилище купить?»</td><td>Конкретный совет под вид рыбы и бюджет + ссылки на магазины</td></tr>
+    <tr><td>«Почему не клюёт?»</td><td>Анализ давления, луны, температуры + советы что изменить</td></tr>
+    <tr><td>«Нахлыст для начинающих»</td><td>Полное руководство: снасти, техника заброса, мушки</td></tr>
+  </tbody>
+</table>
+
+<h4>Функции чата:</h4>
+<div class="grid c2">
+  <div class="card">
+    <h4>↩ Ответить на сообщение</h4>
+    <p><strong>Свайп вправо</strong> на сообщении — появится иконка ↩, затем цитата в поле ввода. Или нажми и удерживай → меню «Ответить».</p>
+  </div>
+  <div class="card">
+    <h4>😊 Реакции</h4>
+    <p>Нажми и удерживай → меню с 6 эмодзи (👍❤️😂😮🎣🔥). Выбери реакцию — она появится под сообщением.</p>
+  </div>
+  <div class="card">
+    <h4>🎤 Голосовое сообщение</h4>
+    <p>Удерживай кнопку микрофона → говори → отпусти. Запись до 2 минут. Отмена — свайп влево при удержании.</p>
+  </div>
+  <div class="card">
+    <h4>📸 Отправить фото</h4>
+    <p>Нажми кнопку прикрепления (+) → «Фото из галереи» или «Камера». ИИ может прокомментировать снимок.</p>
+  </div>
+</div>
+
+<div class="tip"><strong>Быстрые кнопки:</strong> Под полем ввода есть 8 быстрых вопросов — «Прогноз клёва», «Точки рыбалки», «Что ловить», «Луна», «Магазины» и др. Нажми чтобы сразу получить ответ без набора текста.</div>
+
+<!-- СООБЩЕСТВО -->
+<h3 id="community">Чат сообщества</h3>
+<p>Вкладка <strong>💬 Сообщество</strong> — общий чат всех рыбаков приложения в реальном времени.</p>
+
+<h4>Что можно делать:</h4>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">💬</div>
+    <div class="step-body">
+      <h4>Написать сообщение</h4>
+      <p>Текст, фото, видео-кружок (до 60 сек), голосовое. Используй кнопку (+) для медиа.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">↩</div>
+    <div class="step-body">
+      <h4>Ответить на сообщение</h4>
+      <p>Нажми на сообщение → появится меню. Выбери «↩ Ответить» — цитата подставится в поле ввода.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">🔍</div>
+    <div class="step-body">
+      <h4>Поиск по чату</h4>
+      <p>Нажми 🔍 в заголовке → вводи текст. Совпадения подсвечиваются зелёным. Показывает количество найденных сообщений.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">💌</div>
+    <div class="step-body">
+      <h4>Написать личное сообщение</h4>
+      <p>Нажми на имя/аватар пользователя → открывается личный чат (DM). История сохраняется. Доступна только вам двоим.</p>
+    </div>
+  </div>
+</div>
+
+<div class="warn"><strong>Правила чата:</strong> запрещена реклама, спам, оскорбления, нецензурная лексика. Нарушителей блокируют модераторы. Сообщай о нарушениях через функцию «Пожаловаться» (в меню сообщения).</div>
+
+<!-- НОВОСТИ -->
+<h3 id="news">Новости и отчёты</h3>
+<p>Вкладка <strong>📰 Новости</strong> содержит два раздела: «Новости» и «Отчёты рыбаков».</p>
+
+<h4>Раздел «Новости»:</h4>
+<p>Официальные новости Росрыболовства, Рыбнадзора, данные об уровне воды. Новые материалы подсвечиваются красной полосой и анимацией. Включи push-уведомления (кнопка 🔔 в заголовке) — получай важные новости на телефон.</p>
+
+<h4>Раздел «Отчёты рыбаков»:</h4>
+<p>Отчёты пишут сами пользователи. Нажми <strong>«+ Новый отчёт»</strong> чтобы поделиться уловом с сообществом. Можно добавить фото, указать место и вид рыбы. Другие пользователи могут ставить лайки.</p>
+
+<!-- ПРОФИЛЬ -->
+<h3 id="profile">Профиль и дневник уловов</h3>
+<p>Вкладка <strong>👤 Профиль</strong> — твоя персональная страница.</p>
+<table>
+  <thead><tr><th>Раздел</th><th>Описание</th></tr></thead>
+  <tbody>
+    <tr><td>Аватар + имя</td><td>Берётся из Google-аккаунта. Никнейм генерируется автоматически.</td></tr>
+    <tr><td>Статистика</td><td>Количество уловов, общий вес, лучший улов, дни активности.</td></tr>
+    <tr><td>Значки (Badges)</td><td>Автоматически начисляются за достижения: первый улов, 10 кг, 100 дней и др.</td></tr>
+    <tr><td>Дневник уловов</td><td>Личный журнал с датой, рыбой, весом, фото и координатами. Приватен.</td></tr>
+    <tr><td>Рейтинг</td><td>Твоё место в еженедельном и месячном рейтинге.</td></tr>
+    <tr><td>Выход</td><td>Кнопка «Выйти» внизу профиля. Данные сохраняются в Firestore.</td></tr>
+  </tbody>
+</table>
+
+<!-- PWA -->
+<h3 id="pwa">Установка как приложение (PWA)</h3>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">📱</div>
+    <div class="step-body">
+      <h4>Android (Chrome)</h4>
+      <p>Открой сайт → меню (три точки) → «Добавить на главный экран» → «Установить». Иконка появится на рабочем столе.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">🍎</div>
+    <div class="step-body">
+      <h4>iPhone/iPad (Safari)</h4>
+      <p>Открой в Safari → кнопка «Поделиться» (квадрат со стрелкой) → «На экран Домой» → «Добавить».</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">💻</div>
+    <div class="step-body">
+      <h4>Компьютер (Chrome/Edge)</h4>
+      <p>В адресной строке появится иконка установки (⊕) → нажми → «Установить». Приложение откроется в отдельном окне.</p>
+    </div>
+  </div>
+</div>
+
+<!-- УВЕДОМЛЕНИЯ -->
+<h3 id="notifications">Push-уведомления</h3>
+<p>Включи уведомления чтобы получать оповещения о хорошем клёве, важных новостях и ответах в чате:</p>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body"><h4>Открой раздел «Новости»</h4><p>Нажми вкладку 📰 в нижнем меню.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body"><h4>Нажми кнопку 🔔 Уведомления</h4><p>В заголовке страницы, рядом с «Обновить».</p></div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body"><h4>Разреши в браузере</h4><p>Браузер спросит разрешение — нажми «Разрешить». Кнопка станет зелёной «Push вкл».</p></div>
+  </div>
+</div>
+
+<div class="tip"><strong>Важно:</strong> на iPhone уведомления работают только если приложение установлено через «Добавить на экран Домой». Обычная вкладка Safari не поддерживает push-уведомления.</div>
+
+<hr/>
+
+<!-- ═══════════ ИНСТРУКЦИЯ АДМИНИСТРАТОРА ═══════════ -->
+<div class="role-header">
+  <div class="icon">⚙️</div>
+  <div>
+    <h2 style="margin:0;color:var(--c);">Инструкция администратора</h2>
+    <p>Управление Firebase, деплой, Cloud Functions, боты</p>
+  </div>
+</div>
+
+<!-- FIREBASE -->
+<h3 id="admin-firebase">Firebase Console</h3>
+<p>Проект: <code>eger-ai</code> · Console: <code>console.firebase.google.com/project/eger-ai</code></p>
+
+<table>
+  <thead><tr><th>Раздел</th><th>URL / Действие</th><th>Использование</th></tr></thead>
+  <tbody>
+    <tr><td>Firestore Database</td><td>console → Firestore → Data</td><td>Просмотр/редактирование документов, ручное добавление новостей, значков</td></tr>
+    <tr><td>Authentication</td><td>console → Authentication → Users</td><td>Список пользователей, блокировка, удаление аккаунтов</td></tr>
+    <tr><td>Storage</td><td>console → Storage → Files</td><td>Медиафайлы чата и отчётов. Папки: chat_photos/, chat_videos/, chat_voice/, reports/</td></tr>
+    <tr><td>Functions</td><td>console → Functions → Dashboard</td><td>Статус Cloud Functions, логи, ошибки</td></tr>
+    <tr><td>Analytics</td><td>console → Analytics</td><td>DAU, события, воронки, сессии</td></tr>
+    <tr><td>Messaging (FCM)</td><td>console → Cloud Messaging</td><td>Ручная отправка push-уведомлений всем подписчикам</td></tr>
+    <tr><td>Hosting (не используется)</td><td>—</td><td>Сайт хостится на GitHub Pages, не Firebase Hosting</td></tr>
+  </tbody>
+</table>
+
+<h4>Структура Firestore коллекций:</h4>
+<table>
+  <thead><tr><th>Коллекция</th><th>Назначение</th><th>Доступ</th></tr></thead>
+  <tbody>
+    <tr><td><code>/messages/{id}</code></td><td>Сообщения чата сообщества</td><td>Чтение/запись — авторизованные</td></tr>
+    <tr><td><code>/dms/{dmId}/messages/{id}</code></td><td>Личные сообщения между пользователями</td><td>Только участники dmId</td></tr>
+    <tr><td><code>/news/{id}</code></td><td>Новостные статьи (пишут боты)</td><td>Чтение — все, запись — CF только</td></tr>
+    <tr><td><code>/reports/{id}</code></td><td>Отчёты рыбаков</td><td>Чтение — авторизованные, запись — автор</td></tr>
+    <tr><td><code>/catches/{uid}/records/{id}</code></td><td>Личный дневник уловов</td><td>Только владелец</td></tr>
+    <tr><td><code>/users/{uid}</code></td><td>Профиль пользователя</td><td>Чтение — авторизованные, запись — владелец</td></tr>
+    <tr><td><code>/users/{uid}/badges/{id}</code></td><td>Значки достижений</td><td>Чтение — авторизованные, запись — CF только</td></tr>
+    <tr><td><code>/leaderboard/{period}/rows/{uid}</code></td><td>Рейтинг (weekly/monthly)</td><td>Чтение — авторизованные, запись — CF только</td></tr>
+    <tr><td><code>/tournaments/{id}</code></td><td>Турниры</td><td>Чтение — авторизованные, запись — CF только</td></tr>
+    <tr><td><code>/tournaments/{id}/participants/{uid}</code></td><td>Участники турнира</td><td>Чтение — авторизованные, запись — сам пользователь</td></tr>
+    <tr><td><code>/water_levels/{id}</code></td><td>Уровень воды в реках</td><td>Чтение — все, запись — запрещена</td></tr>
+    <tr><td><code>/fcm_tokens/{token}</code></td><td>FCM-токены для push</td><td>Запись — авторизованные, чтение — запрещено</td></tr>
+    <tr><td><code>/ai_usage/{uid}</code></td><td>Счётчик запросов к AI</td><td>Только CF</td></tr>
+    <tr><td><code>/bot_kb/{id}</code></td><td>База знаний бота</td><td>Чтение — авторизованные, запись — CF</td></tr>
+    <tr><td><code>/suggested_spots/{id}</code></td><td>Предложенные рыбные места</td><td>Создание — авторизованные, чтение — CF/мод.</td></tr>
+  </tbody>
+</table>
+
+<!-- CLOUD FUNCTIONS -->
+<h3 id="admin-functions">Cloud Functions</h3>
+<p>Регион: <code>europe-west3</code> (Франкфурт). Деплой: <code>firebase deploy --only functions --project eger-ai</code></p>
+
+<table>
+  <thead><tr><th>Функция</th><th>Триггер</th><th>Назначение</th></tr></thead>
+  <tbody>
+    <tr><td><code>callClaude</code></td><td>HTTPS Callable</td><td>Проксирование запросов к Anthropic Claude API. Проверяет лимит /ai_usage.</td></tr>
+    <tr><td><code>triggerFetchNews</code></td><td>HTTPS Callable</td><td>Ручной запуск загрузки новостей из внешних источников.</td></tr>
+    <tr><td><code>runBots</code></td><td>Pub/Sub schedule (cron)</td><td>Боты публикуют сообщения в чат и новости. Запускается по расписанию.</td></tr>
+    <tr><td><code>onNewCatch</code></td><td>Firestore onCreate</td><td>При новом улове — начисление значков, обновление рейтинга.</td></tr>
+    <tr><td><code>sendPushNotification</code></td><td>Firestore onCreate /news</td><td>При новой новости — отправка FCM push всем подписчикам.</td></tr>
+    <tr><td><code>updateLeaderboard</code></td><td>Pub/Sub (ежечасно)</td><td>Пересчёт еженедельного и месячного рейтинга.</td></tr>
+  </tbody>
+</table>
+
+<h4>Проверка логов функций:</h4>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body"><h4>Firebase Console → Functions → Logs</h4><p>Реальное время выполнения, ошибки, duration каждого вызова.</p></div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body"><h4>Google Cloud Console → Cloud Logging</h4><p>Расширенный поиск: <code>resource.type="cloud_function" AND resource.labels.function_name="runBots"</code></p></div>
+  </div>
+</div>
+
+<!-- ПРАВИЛА FIRESTORE -->
+<h3 id="admin-rules">Правила Firestore</h3>
+<p>Файл: <code>firestore.rules</code>. Деплой: <code>firebase deploy --only firestore:rules --project eger-ai</code></p>
+
+<div class="tip"><strong>Важно:</strong> После любого изменения rules необходимо деплоить! Тестирование через Firebase Console → Firestore → Rules → «Тестирование правил».</div>
+
+<p>Ключевые принципы применённых правил:</p>
+<ul style="padding-left:20px;color:var(--m);font-size:13px;line-height:2;">
+  <li>Пользователь читает/пишет только свои данные (<code>isOwner(userId)</code>)</li>
+  <li>Публичные коллекции (сообщения, новости, отчёты) — только для авторизованных</li>
+  <li>Рейтинг, значки, AI-счётчики — только Cloud Functions (<code>allow write: if false</code>)</li>
+  <li>DM: участники /dms/{dmId}.participants[] имеют доступ к переписке</li>
+  <li>FCM-токены: только запись, никто не может читать чужие токены</li>
+</ul>
+
+<!-- УПРАВЛЕНИЕ БОТАМИ -->
+<h3 id="admin-bots">Управление ботами</h3>
+<p>Боты — это Cloud Function <code>runBots</code>, которая публикует сообщения от имени виртуальных рыбаков для оживления чата.</p>
+
+<table>
+  <thead><tr><th>Бот</th><th>Persona</th><th>Что публикует</th></tr></thead>
+  <tbody>
+    <tr><td>Бот #1</td><td>Опытный рыбак, ник «DonFisher»</td><td>Отчёты об уловах, советы по погоде</td></tr>
+    <tr><td>Бот #2</td><td>Молодой рыбак, ник «FishHunter»</td><td>Вопросы, новички-истории</td></tr>
+    <tr><td>Бот #3</td><td>Ветеран, ник «DonMaster»</td><td>Советы по снастям, философия рыбалки</td></tr>
+    <tr><td>Бот #4</td><td>Женщина-рыбак, ник «Natasha_fish»</td><td>Семейные рыбалки, красивые уловы</td></tr>
+  </tbody>
+</table>
+
+<h4>Ручной запуск ботов:</h4>
+<p>Кнопка «Обновить» в разделе Новости (при авторизации) вызывает <code>triggerFetchNews</code>. Для запуска ботов вручную — через Firebase Console → Functions → «Тестирование» → <code>runBots</code>.</p>
+
+<!-- ДЕПЛОЙ -->
+<h3 id="admin-deploy">Деплой приложения</h3>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>Внести изменения в index.html</h4>
+      <p>Все изменения UI — в файле <code>C:\Users\user\Downloads\eger\index.html</code>.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Закоммитить</h4>
+      <p><code>git add index.html && git commit -m "описание изменений"</code></p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>Запушить на GitHub Pages</h4>
+      <p><code>git push origin master</code> — через 1–3 минуты изменения появятся на сайте.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h4>Деплой Firestore rules (если изменились)</h4>
+      <p><code>$env:PATH = "C:\Program Files\nodejs;" + $env:PATH</code><br/><code>firebase deploy --only firestore:rules --project eger-ai</code></p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <h4>Деплой Cloud Functions (если изменились)</h4>
+      <p><code>firebase deploy --only functions --project eger-ai</code><br/>Занимает 3–5 минут.</p>
+    </div>
+  </div>
+</div>
+
+<div class="danger"><strong>ОСТОРОЖНО:</strong> никогда не пушь файл <code>.env</code> или файлы с секретными ключами (API key Claude, сервисный аккаунт Firebase). Firebase конфиг в коде — допустимо, он публичный и защищён правилами Firestore. Секреты Claude API хранятся только в переменных окружения Cloud Functions.</div>
+
+<hr/>
+
+<!-- ═══════════ ИНСТРУКЦИЯ МОДЕРАТОРА ═══════════ -->
+<div class="role-header">
+  <div class="icon">🛡️</div>
+  <div>
+    <h2 style="margin:0;color:var(--g);">Инструкция модератора</h2>
+    <p>Поддержание порядка в чате, отчётах и взаимодействиях пользователей</p>
+  </div>
+</div>
+
+<!-- ОБЯЗАННОСТИ -->
+<h3 id="mod-overview">Обязанности модератора</h3>
+<div class="grid c2">
+  <div class="card gold">
+    <div class="icon">👁️</div>
+    <h4>Мониторинг чата</h4>
+    <p>Регулярная проверка новых сообщений в CommunityScreen. Реакция на жалобы пользователей.</p>
+  </div>
+  <div class="card gold">
+    <div class="icon">📝</div>
+    <h4>Модерация отчётов</h4>
+    <p>Проверка отчётов рыбаков на соответствие правилам перед публикацией (в планах — премодерация).</p>
+  </div>
+  <div class="card gold">
+    <div class="icon">👥</div>
+    <h4>Работа с пользователями</h4>
+    <p>Блокировка нарушителей через Firebase Console → Authentication, разбор конфликтов.</p>
+  </div>
+  <div class="card gold">
+    <div class="icon">🗑️</div>
+    <h4>Удаление контента</h4>
+    <p>Удаление неприемлемых сообщений напрямую из Firestore или через интерфейс (если модератор — владелец).</p>
+  </div>
+</div>
+
+<!-- МОДЕРАЦИЯ ЧАТА -->
+<h3 id="mod-messages">Модерация чата сообщества</h3>
+
+<h4>Что запрещено в чате:</h4>
+<table>
+  <thead><tr><th>Нарушение</th><th>Действие</th><th>Инструмент</th></tr></thead>
+  <tbody>
+    <tr><td>Спам / реклама</td><td>Удалить сообщение + предупреждение</td><td>Firestore: /messages → удалить документ</td></tr>
+    <tr><td>Оскорбления / мат</td><td>Удалить + предупреждение. При повторе — блок</td><td>Firestore + Firebase Auth</td></tr>
+    <tr><td>Фейковые координаты</td><td>Удалить сообщение</td><td>Firestore</td></tr>
+    <tr><td>Незаконные методы ловли</td><td>Удалить + уведомить пользователя</td><td>Firestore + DM</td></tr>
+    <tr><td>Личные данные других людей</td><td>Немедленное удаление</td><td>Firestore</td></tr>
+    <tr><td>Контент 18+</td><td>Немедленное удаление + блок</td><td>Firebase Auth → отключить пользователя</td></tr>
+  </tbody>
+</table>
+
+<h4>Как удалить сообщение из Firestore:</h4>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>Открой Firebase Console</h4>
+      <p>console.firebase.google.com → проект eger-ai → Firestore Database</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Перейди в коллекцию /messages</h4>
+      <p>Найди нужное сообщение по полю <code>text</code> или <code>uid</code> автора. Можно использовать фильтр.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>Удали документ</h4>
+      <p>Нажми на ID документа → кнопка 🗑️ «Удалить документ» → подтверди. Сообщение исчезнет у всех в реальном времени.</p>
+    </div>
+  </div>
+</div>
+
+<div class="tip"><strong>В будущем:</strong> планируется добавить функцию «Пожаловаться» с автоматическим уведомлением модератора и инструмент модерации прямо в интерфейсе приложения без Firebase Console.</div>
+
+<!-- МОДЕРАЦИЯ ОТЧЁТОВ -->
+<h3 id="mod-reports">Модерация отчётов рыбаков</h3>
+<p>Отчёты публикуются в коллекции <code>/reports</code>. Правила для проверки:</p>
+
+<table>
+  <thead><tr><th>Критерий</th><th>Допустимо</th><th>Недопустимо</th></tr></thead>
+  <tbody>
+    <tr><td>Фото</td><td>Улов, рыбалка, снасти, места</td><td>Неприемлемый контент, личные данные людей</td></tr>
+    <tr><td>Текст</td><td>Описание рыбалки, советы, вопросы</td><td>Реклама, оскорбления, спам</td></tr>
+    <tr><td>Место ловли</td><td>Любой водоём Ростовской области и РФ</td><td>Координаты частной территории</td></tr>
+    <tr><td>Способ ловли</td><td>Легальные методы</td><td>Электроудочка, сети в запрещённых местах, взрывчатка</td></tr>
+  </tbody>
+</table>
+
+<h4>Как удалить отчёт:</h4>
+<p>Коллекция <code>/reports</code> в Firestore → найти по <code>userId</code> или <code>title</code> → удалить документ. Автор получает возможность опубликовать новый отчёт.</p>
+
+<!-- РАБОТА С ПОЛЬЗОВАТЕЛЯМИ -->
+<h3 id="mod-users">Работа с пользователями</h3>
+
+<h4>Блокировка пользователя:</h4>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>Firebase Console → Authentication → Users</h4>
+      <p>Найди пользователя по email или UID.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Отключи аккаунт</h4>
+      <p>Нажми на пользователя → «Отключить аккаунт» (Disable account). Пользователь не сможет войти и потеряет сессию.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>Опционально: удали данные</h4>
+      <p>Если необходимо — удали документ <code>/users/{uid}</code> в Firestore. Сообщения в чате останутся с именем, но без активного аккаунта.</p>
+    </div>
+  </div>
+</div>
+
+<div class="warn"><strong>Внимание:</strong> блокировка необратима в простом смысле — пользователь не сможет войти. Включить обратно: Firebase Console → Authentication → Users → тот же пользователь → «Включить аккаунт».</div>
+
+<!-- ИНСТРУМЕНТЫ МОДЕРАТОРА -->
+<h3 id="mod-tools">Инструменты модератора</h3>
+
+<table>
+  <thead><tr><th>Инструмент</th><th>Доступ</th><th>Применение</th></tr></thead>
+  <tbody>
+    <tr><td>Firebase Console</td><td>console.firebase.google.com</td><td>Основной инструмент. Все операции с данными.</td></tr>
+    <tr><td>Firestore Data Browser</td><td>Console → Firestore → Data</td><td>Просмотр, редактирование, удаление документов.</td></tr>
+    <tr><td>Firebase Auth</td><td>Console → Authentication</td><td>Блокировка пользователей, просмотр активности.</td></tr>
+    <tr><td>Firebase Storage</td><td>Console → Storage</td><td>Удаление медиафайлов нарушителей.</td></tr>
+    <tr><td>Cloud Messaging</td><td>Console → Cloud Messaging</td><td>Ручная отправка уведомлений (важные объявления).</td></tr>
+    <tr><td>Приложение (DM)</td><td>Войти как пользователь</td><td>Связь с нарушителем через личные сообщения.</td></tr>
+  </tbody>
+</table>
+
+<h4>Чек-лист ежедневной модерации:</h4>
+<div class="steps">
+  <div class="step"><div class="step-num">☐</div><div class="step-body"><h4>Просмотр новых сообщений за сутки</h4><p>Firestore → /messages, сортировка по timestamp desc, последние 50.</p></div></div>
+  <div class="step"><div class="step-num">☐</div><div class="step-body"><h4>Проверка новых отчётов</h4><p>Firestore → /reports, последние добавленные. Просмотр фото и текста.</p></div></div>
+  <div class="step"><div class="step-num">☐</div><div class="step-body"><h4>Реакция на жалобы</h4><p>В будущем — отдельная коллекция жалоб. Пока — email turbenbaher@gmail.com.</p></div></div>
+  <div class="step"><div class="step-num">☐</div><div class="step-body"><h4>Мониторинг ботов</h4><p>Убедиться что боты активны: последнее сообщение от ботов — не позднее 24 часов назад.</p></div></div>
+</div>
+
+<div style="text-align:center;margin-top:60px;font-size:11px;color:rgba(232,244,240,.2);letter-spacing:1px;">
+  ЕГЕРЬ ИИ · ДОКУМЕНТАЦИЯ v2.0 · МАЙ 2026 · turbenbaher@gmail.com · github.com/turbenbaher-del/eger-ai
+</div>
+
+</div><!-- /main -->
+
+<script>
+// Active nav link on scroll
+const links = document.querySelectorAll('.nav-link');
+const sections = [...links].map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+const io = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      links.forEach(l=>l.classList.remove('active'));
+      const lnk = document.querySelector('.nav-link[href="#'+e.target.id+'"]');
+      if(lnk) lnk.classList.add('active');
+    }
+  });
+},{threshold:0.3});
+sections.forEach(s=>io.observe(s));
+links.forEach(l=>l.addEventListener('click',e=>{
+  e.preventDefault();
+  const t=document.querySelector(l.getAttribute('href'));
+  if(t) t.scrollIntoView({behavior:'smooth'});
+}));
+</script>
+</body>
+</html>
