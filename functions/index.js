@@ -344,19 +344,26 @@ exports.onSpotApproved = functions
 exports.askEger = functions
   .region("europe-west3")
   .https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Auth required");
-
     const { messages = [], weather, userCatches = [] } = data;
 
-    // Rate limit: 50 сообщений в день на пользователя
+    // Rate limit: авторизованные 200/день по uid, гости 20/день по IP
+    const uid = context.auth?.uid;
+    const ip = (context.rawRequest?.headers?.["x-forwarded-for"] || context.rawRequest?.ip || "unknown")
+      .split(",")[0].trim().replace(/[.:]/g, "_");
+    const limitKey = uid || `ip_${ip}`;
+    const dailyLimit = uid ? 200 : 20;
+
     const today = new Date().toISOString().split("T")[0];
-    const usageRef = db.collection("ai_usage").doc(context.auth.uid);
+    const usageRef = db.collection("ai_usage").doc(limitKey);
     const usageDoc = await usageRef.get();
     const usageData = usageDoc.exists ? usageDoc.data() : {};
     const todayCount = usageData.date === today ? (usageData.count || 0) : 0;
 
-    if (todayCount >= 200) {
-      return { limited: true, message: "Лимит 200 сообщений в день исчерпан 🎣 Возвращайся завтра!" };
+    if (todayCount >= dailyLimit) {
+      const msg = uid
+        ? "Лимит 200 сообщений в день исчерпан 🎣 Возвращайся завтра!"
+        : "Лимит 20 сообщений в день для гостей исчерпан 🎣 Войди в аккаунт — там 200 сообщений!";
+      return { limited: true, message: msg };
     }
 
     // Контекстная информация для системного промпта

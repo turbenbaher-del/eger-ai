@@ -1580,15 +1580,6 @@
 
     const send = useCallback((overrideText)=>{
       const text=(overrideText||input).trim(); if(!text) return;
-      if(!user){
-        setMsgs(p=>[...p,
-          {role:"user",type:"text",text,time:fmtTime()},
-          {role:"assistant",type:"text",text:"Чтобы общаться с Егерем ИИ, нужно войти в аккаунт 🎣",time:fmtTime(),needLogin:true}
-        ]);
-        if(!overrideText) setInput("");
-        onLogin?.();
-        return;
-      }
       const newMsg = {role:"user",type:"text",text,time:fmtTime()};
       msgsRef.current = [...msgsRef.current, newMsg];
       setMsgs(p=>[...p,newMsg]);
@@ -1596,7 +1587,7 @@
       logEvent("chat_message_sent");
       logEvent("ai_query_sent",{is_voice:false});
       callAI(text);
-    },[input,weather,newbieMode,user]);
+    },[input,weather,newbieMode]);
 
     const sendPhoto = async (file) => {
       if(!file) return;
