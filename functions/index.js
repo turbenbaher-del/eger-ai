@@ -669,3 +669,159 @@ exports.triggerFetchNews = functions
     await metaRef.set({ lastFetch: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     return { added };
   });
+
+// ────────────────────────────────────────────────────────────
+// 12. Боты-рыбаки — симуляция активности пользователей
+// ────────────────────────────────────────────────────────────
+
+const BOTS = [
+  { uid:"bot_001", name:"Алексей Донской",   area:"Дон у Ростова",       lat:47.2357, lng:39.7015, fish:["судак","щука","окунь"],        method:"спиннинг",   emoji:"🎣" },
+  { uid:"bot_002", name:"Михаил Аксайский",  area:"Аксай",               lat:47.2681, lng:39.8699, fish:["лещ","сазан","карась"],         method:"фидер",      emoji:"🐟" },
+  { uid:"bot_003", name:"Сергей Цимлянский", area:"Цимлянское вдхр",     lat:47.6421, lng:42.0954, fish:["карп","сазан","лещ"],           method:"карповая",   emoji:"🏆" },
+  { uid:"bot_004", name:"Дмитрий Азовский",  area:"Азовское море",       lat:47.1023, lng:39.4123, fish:["судак","пиленгас","бычок"],     method:"донка",      emoji:"⚓" },
+  { uid:"bot_005", name:"Николай Батайский", area:"Батайск",             lat:47.1456, lng:39.7456, fish:["карась","плотва","красноперка"],method:"поплавок",   emoji:"🌅" },
+  { uid:"bot_006", name:"Андрей Новочерк",   area:"Новочеркасск",        lat:47.4181, lng:40.0956, fish:["судак","берш","голавль"],       method:"джиг",       emoji:"💪" },
+  { uid:"bot_007", name:"Василий Таганрогский",area:"Таганрог",          lat:47.2090, lng:38.9360, fish:["бычок","кефаль","пиленгас"],   method:"морской фидер",emoji:"🌊" },
+  { uid:"bot_008", name:"Иван Семикаракорский",area:"Семикаракорск",     lat:47.5101, lng:40.8234, fish:["лещ","синец","густера"],        method:"фидер",      emoji:"🎯" },
+  { uid:"bot_009", name:"Пётр Волгодонской", area:"Волгодонск",          lat:47.5134, lng:42.1523, fish:["судак","лещ","карп"],           method:"спиннинг",   emoji:"🔥" },
+  { uid:"bot_010", name:"Фёдор Константин",  area:"Константиновск",      lat:47.5801, lng:41.0912, fish:["голавль","жерех","чехонь"],     method:"нахлыст",    emoji:"🎩" },
+];
+
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const rnd  = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+
+function botFish(b) { return pick(b.fish); }
+
+function genChatMsg(b) {
+  const fish = botFish(b);
+  const weight = (rnd(3, 28) / 10).toFixed(1);
+  const msgs = [
+    `Привет всем! Только вернулся с ${b.area} — взял ${fish} на ${b.method} ${b.emoji} Клёв утром был отличный!`,
+    `Сегодня на ${b.area} поймал ${fish} ${weight} кг. ${pick(["Счастливое место","Снова повезло","Хорошая рыбалка"])}! ${b.emoji}`,
+    `Кто собирается на ${b.area} на выходных? Там сейчас ${pick(["хорошо клюёт","активный клёв","рыба есть"])} ${b.emoji}`,
+    `Ловлю на ${b.method} в районе ${b.area}. ${pick(["Рекомендую всем","Отличное место","Советую заехать"])} — ${fish} берёт уверенно.`,
+    `${b.emoji} ${fish} сегодня на ${b.area} попадался хорошо. Брал на ${b.method}, глубина ${rnd(2,6)} м.`,
+    `Утром на ${b.area}: ${fish} ${weight} кг! На ${b.method}. Погода ${pick(["порадовала","была отличная","не подвела"])} ${b.emoji}`,
+    `Кто знает как обстановка на ${b.area}? Планирую поехать ${pick(["завтра","на выходных","на этой неделе"])} за ${fish}ем.`,
+    `${b.emoji} Только что вернулся — ${b.area}, ${fish}, ${b.method}. ${pick(["Рыбалка удалась!","Отличный день!","Не зря поехал!"])}`,
+  ];
+  return pick(msgs);
+}
+
+function genReport(b) {
+  const fish = botFish(b);
+  const fish2 = botFish(b);
+  const weight = (rnd(5, 35) / 10).toFixed(1);
+  const weight2 = (rnd(2, 15) / 10).toFixed(1);
+  const hour = rnd(5, 9);
+  const titles = [
+    `Рыбалка на ${b.area} — ${fish} на ${b.method}`,
+    `Отчёт: ${fish} ${weight} кг, ${b.area}`,
+    `Утренняя рыбалка — ${b.area}`,
+    `${b.emoji} Хороший улов на ${b.area}`,
+  ];
+  const bodies = [
+    `Выехал в ${hour}:00, встал на любимом месте. Ловил на ${b.method}, глубина ${rnd(2,7)} м. Первый ${fish} взял через полчаса — ${weight} кг. Потом ещё пару поклёвок, один сошёл. В итоге взял ${rnd(2,6)} рыбы. Прикормка: ${pick(["кукуруза","червь","опарыш","бойлы","силикон"])}. Место хорошее, рекомендую!`,
+    `Давно не ездил на ${b.area}, наконец выбрался. Погода ${pick(["радовала","была хорошей","не подвела"])} — ${pick(["солнечно","переменная облачность","тихо"])}. ${fish} брал активно с ${hour}:00 до ${hour+2}:00. Лучший экземпляр ${weight} кг. ${fish2} тоже попался — ${weight2} кг. Итого ${rnd(3,8)} хвостов. Всем рекомендую это место!`,
+    `Отличная рыбалка получилась! ${b.area}, ${b.method}, ${fish}. Глубина ${rnd(3,8)} м, течение ${pick(["слабое","умеренное","нет"])}. Поклёвки с самого рассвета. Самый крупный ${fish} потянул на ${weight} кг. В сумме взял ${rnd(4,10)} рыбин. ${b.emoji}`,
+  ];
+  return {
+    title: pick(titles),
+    body: pick(bodies),
+    location: b.area,
+    fish: fish,
+    uid: b.uid,
+    displayName: b.name,
+    lat: b.lat + (Math.random() - 0.5) * 0.05,
+    lng: b.lng + (Math.random() - 0.5) * 0.05,
+  };
+}
+
+function genCatch(b) {
+  const fish = botFish(b);
+  const weightGrams = rnd(200, 4500);
+  return {
+    fishType: fish,
+    weightGrams,
+    lengthCm: rnd(20, 70),
+    locationName: b.area,
+    method: b.method,
+    lat: b.lat + (Math.random() - 0.5) * 0.05,
+    lng:  b.lng + (Math.random() - 0.5) * 0.05,
+  };
+}
+
+async function ensureBotProfiles() {
+  const batch = db.batch();
+  for (const b of BOTS) {
+    const ref = db.collection("users").doc(b.uid);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      batch.set(ref, {
+        displayName: b.name,
+        photoURL: null,
+        area: b.area,
+        isBot: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  }
+  await batch.commit();
+}
+
+async function runBotsOnce() {
+  await ensureBotProfiles();
+  const ts = admin.firestore.FieldValue.serverTimestamp();
+  const shuffled = [...BOTS].sort(() => Math.random() - 0.5);
+  const active = shuffled.slice(0, rnd(2, 4)); // 2-4 бота за раз
+  let actions = 0;
+
+  for (const b of active) {
+    const action = pick(["chat", "chat", "report", "catch"]); // чаще чат
+
+    if (action === "chat") {
+      await db.collection("messages").add({
+        uid: b.uid,
+        name: b.name,
+        text: genChatMsg(b),
+        timestamp: ts,
+        isBot: true,
+      });
+      functions.logger.info(`Bot ${b.name} → chat`);
+      actions++;
+    }
+
+    if (action === "report") {
+      const rep = genReport(b);
+      await db.collection("reports").add({ ...rep, timestamp: ts });
+      functions.logger.info(`Bot ${b.name} → report`);
+      actions++;
+    }
+
+    if (action === "catch") {
+      const ct = genCatch(b);
+      await db.collection("catches").doc(b.uid)
+        .collection("records").add({ ...ct, userId: b.uid, createdAt: ts });
+      functions.logger.info(`Bot ${b.name} → catch ${ct.fishType} ${ct.weightGrams}g`);
+      actions++;
+    }
+  }
+
+  functions.logger.info(`runBots: ${actions} actions by ${active.map(b=>b.name).join(", ")}`);
+  return actions;
+}
+
+exports.runBots = functions
+  .region("europe-west3")
+  .runWith({ timeoutSeconds: 60 })
+  .pubsub.schedule("0 */3 * * *")   // каждые 3 часа
+  .timeZone("Europe/Moscow")
+  .onRun(async () => { await runBotsOnce(); return null; });
+
+exports.triggerBots = functions
+  .region("europe-west3")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Auth required");
+    const actions = await runBotsOnce();
+    return { actions };
+  });
