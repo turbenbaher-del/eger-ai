@@ -1565,6 +1565,7 @@
         setMsgs(p => [...p, { role:"assistant", type:"text", text: replyText, time:fmtTime() }]);
       } catch(e) {
         setTyping(false);
+        console.error("[askEger] error:", e?.code, e?.message, e);
         const kbAnswer = findKbAnswer(userText);
         if(kbAnswer){
           setMsgs(p=>[...p,{role:"assistant",type:"text",text:kbAnswer,time:fmtTime(),fromKb:true}]);
@@ -1572,7 +1573,8 @@
           const r = getBotReplyCtx(queryText, weather, ctxRef.current);
           ctxRef.current = r.ctx; setLastTopic(r.ctx.lastTopic||"");
           const note = getDiaryNote(userText, userCatchesRef.current);
-          setMsgs(p=>[...p,{role:"assistant",type:"text",text:note?note+r.text:r.text,time:fmtTime()}]);
+          const errHint = e?.code||e?.message ? ` [${e?.code||e?.message}]` : "";
+          setMsgs(p=>[...p,{role:"assistant",type:"text",text:(note?note+r.text:r.text)+errHint,time:fmtTime()}]);
         }
       }
     };

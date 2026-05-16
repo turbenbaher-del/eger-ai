@@ -11,7 +11,7 @@ firebase.initializeApp({
 });
 
 const messaging = firebase.messaging();
-const CACHE = 'eger-v4';
+const CACHE = 'eger-v5';
 const SHELL = [
   '/eger-ai/',
   '/eger-ai/index.html',
