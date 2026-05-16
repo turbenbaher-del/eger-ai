@@ -2501,6 +2501,94 @@
     );
   }
 
+  /* ── DM Screen (личные сообщения) ── */
+  function DMScreen({ user, otherUser, onClose }) {
+    const dmId = [user.uid, otherUser.uid].sort().join('_');
+    const [msgs, setMsgs] = useState([]);
+    const [input, setInput] = useState("");
+    const bottomRef = useRef(null);
+    const aColor = uid => { const cols=[C.accent,C.cyan,C.gold,C.blue,"#a78bfa","#f472b6"]; let h=0; for(let c of(uid||"x")) h=(h*31+c.charCodeAt(0))%cols.length; return cols[h]; };
+    const otherColor = aColor(otherUser.uid);
+
+    useEffect(()=>{
+      db.collection("dms").doc(dmId).set({
+        participants:[user.uid,otherUser.uid].sort(),
+        [`name_${user.uid}`]:user.displayName||"Рыбак",
+        [`name_${otherUser.uid}`]:otherUser.displayName||"Рыбак",
+      },{merge:true});
+      const unsub=db.collection("dms").doc(dmId).collection("messages")
+        .orderBy("timestamp","asc").limit(200)
+        .onSnapshot(snap=>{
+          setMsgs(snap.docs.map(d=>({id:d.id,...d.data()})));
+          setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:"smooth"}),50);
+        });
+      return unsub;
+    },[dmId]);
+
+    const send = async () => {
+      const text=input.trim(); if(!text) return;
+      setInput("");
+      await db.collection("dms").doc(dmId).collection("messages").add({
+        uid:user.uid, displayName:user.displayName||"Рыбак", text,
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      db.collection("dms").doc(dmId).set({
+        lastMessage:text, lastAt:firebase.firestore.FieldValue.serverTimestamp(),
+        [`unread_${otherUser.uid}`]:firebase.firestore.FieldValue.increment(1)
+      },{merge:true});
+    };
+
+    return (
+      <div style={{position:"absolute",top:0,right:0,bottom:0,left:0,background:C.bg,display:"flex",flexDirection:"column",zIndex:80,animation:"slideUp .22s ease"}}>
+        <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,background:"rgba(7,17,30,.97)",backdropFilter:"blur(20px)"}}>
+          <button onClick={onClose} style={{width:36,height:36,borderRadius:"50%",border:"none",background:C.surfaceHi,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>←</button>
+          <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${otherColor},${otherColor}88)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"#07111e",flexShrink:0}}>
+            {(otherUser.displayName||"Р")[0].toUpperCase()}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,fontWeight:700,color:C.text}}>{otherUser.displayName||"Рыбак"}</div>
+            {otherUser.username&&<div style={{fontSize:10,color:C.muted}}>@{otherUser.username}</div>}
+          </div>
+          <div style={{fontSize:10,color:C.muted}}>Личные сообщения</div>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"12px 14px 6px"}}>
+          {msgs.length===0&&(
+            <div style={{textAlign:"center",padding:48,color:C.dimmer}}>
+              <div style={{fontSize:40,marginBottom:14}}>💬</div>
+              <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:4}}>Начни разговор</div>
+              <div style={{fontSize:12}}>Напиши {otherUser.displayName||"рыбаку"} первым!</div>
+            </div>
+          )}
+          {msgs.map((msg)=>{
+            const isMe=msg.uid===user.uid;
+            const br=isMe?"18px 18px 4px 18px":"18px 18px 18px 4px";
+            return (
+              <div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",marginBottom:6,animation:"fadeUp .2s ease"}}>
+                <div style={{maxWidth:"78%"}}>
+                  <div style={{padding:"10px 13px",borderRadius:br,background:isMe?`linear-gradient(135deg,#1a8a50,${C.accent})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:isMe?"#07111e":C.text,fontSize:13.5,lineHeight:1.55,whiteSpace:"pre-wrap"}}>
+                    {msg.text}
+                    <div style={{fontSize:10,opacity:.5,marginTop:3,textAlign:"right",color:isMe?"#07111e":C.text}}>{msg.timestamp?fmtDate(msg.timestamp):""}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={bottomRef}/>
+        </div>
+        <div style={{padding:"8px 14px 14px",borderTop:`1px solid ${C.border}`,background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",display:"flex",gap:8,alignItems:"flex-end"}}>
+          <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+            placeholder={`Написать ${otherUser.displayName||""}...`}
+            style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:16,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}}
+            onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
+          <button onClick={send} style={{width:44,height:44,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:input.trim()?`linear-gradient(135deg,#1a8a50,${C.accent})`:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .25s"}}>
+            <Send size={17} color={input.trim()?"#07111e":C.muted}/>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   function CommunityScreen({ user, onLogin }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState("");
@@ -2545,6 +2633,9 @@
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [noMoreOlder, setNoMoreOlder] = useState(false);
     const oldestDocRef = useRef(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [dmTarget, setDmTarget] = useState(null);
 
     useEffect(()=>{
       const unsub=db.collection("messages").orderBy("timestamp","desc").limit(50).onSnapshot(snap=>{
@@ -2575,6 +2666,22 @@
       const seen=new Set();
       return [...olderMsgs,...messages].filter(m=>{ if(seen.has(m.id))return false; seen.add(m.id); return true; });
     },[olderMsgs,messages]);
+
+    const displayMsgs = useMemo(()=>{
+      if(!searchQuery.trim()) return allMsgs;
+      const q=searchQuery.toLowerCase();
+      return allMsgs.filter(m=>(m.text||"").toLowerCase().includes(q)||(m.displayName||"").toLowerCase().includes(q)||(m.username||"").toLowerCase().includes(q));
+    },[allMsgs,searchQuery]);
+
+    const hlSearch = (text) => {
+      if(!searchQuery.trim()) return text;
+      const q=searchQuery.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+      return (text||"").split(new RegExp(`(${q})`,"gi")).map((p,i)=>
+        p.toLowerCase()===searchQuery.toLowerCase()
+          ? <mark key={i} style={{background:"rgba(46,204,113,.35)",color:C.text,borderRadius:2,padding:"0 1px"}}>{p}</mark>
+          : p
+      );
+    };
 
     // Загрузка/создание username + top badge
     useEffect(()=>{
@@ -2829,13 +2936,28 @@
     const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
     return (
-      <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
-        <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><MessageCircle size={17} color="#fff"/></div>
-            <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Чат рыбаков</div><div style={{fontSize:10,color:C.accent}}>Ростовская обл.</div></div>
+      <div style={{display:"flex",flexDirection:"column",height:"100%",position:"relative"}}>
+        {dmTarget&&user&&<DMScreen user={user} otherUser={dmTarget} onClose={()=>setDmTarget(null)}/>}
+        <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><MessageCircle size={17} color="#fff"/></div>
+              <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Чат рыбаков</div><div style={{fontSize:10,color:C.accent}}>Ростовская обл.</div></div>
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <button onClick={()=>{setSearchOpen(o=>!o);setSearchQuery("");}} style={{width:34,height:34,borderRadius:"50%",border:`1px solid ${searchOpen?C.borderHi:C.border}`,background:searchOpen?C.accentDim:C.surface,color:searchOpen?C.accent:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,transition:"all .2s"}}>🔍</button>
+              {!user&&<button onClick={onLogin} style={{padding:"6px 12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>}
+            </div>
           </div>
-          {!user&&<button onClick={onLogin} style={{padding:"6px 12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>}
+          {searchOpen&&(
+            <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",animation:"fadeIn .2s ease"}}>
+              <input autoFocus value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}
+                placeholder="Поиск по сообщениям..."
+                style={{flex:1,padding:"9px 14px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.surfaceHi,color:C.text,fontSize:13,outline:"none"}}
+                onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.borderHi}/>
+              {searchQuery.trim()&&<span style={{fontSize:11,color:C.muted,flexShrink:0,whiteSpace:"nowrap"}}>{displayMsgs.length} сообщ.</span>}
+            </div>
+          )}
         </div>
 
         <div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px"}} onClick={()=>setAttachOpen(false)}>
@@ -2847,26 +2969,25 @@
             </div>
           )}
           {allMsgs.length===0&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><MessageCircle size={40} color={C.dimmer} style={{margin:"0 auto 12px",display:"block"}}/><div style={{fontSize:14}}>Будь первым!</div></div>}
-          {allMsgs.map((msg,i)=>{
+          {allMsgs.length>0&&displayMsgs.length===0&&<div style={{textAlign:"center",padding:40,color:C.dimmer}}><div style={{fontSize:24,marginBottom:8}}>🔍</div><div style={{fontSize:14}}>Ничего не найдено</div></div>}
+          {displayMsgs.map((msg,i)=>{
             const isMe=user&&msg.uid===user.uid, col=aColor(msg.uid), ts=msg.timestamp?fmtDate(msg.timestamp):"";
             const isVideo=msg.type==="video"&&msg.videoUrl;
             const isVoice=msg.type==="voice"&&msg.voiceUrl;
             const isImage=msg.type==="image"&&msg.imageUrl;
             const isSel=selectedMsg===msg.id;
-            // показываем время только в конце кластера (последнее сообщение отправителя или при выборе)
-            const showTs = isSel || i===allMsgs.length-1 || allMsgs[i+1]?.uid!==msg.uid;
-            // прячем аватар/имя если предыдущее — тот же отправитель
-            const sameAsPrev = i>0 && allMsgs[i-1]?.uid===msg.uid;
+            const showTs = isSel || i===displayMsgs.length-1 || displayMsgs[i+1]?.uid!==msg.uid;
+            const sameAsPrev = i>0 && displayMsgs[i-1]?.uid===msg.uid;
             const rxEntries=Object.entries(msg.reactions||{}).filter(([,u])=>u&&u.length>0);
             return (
               <div key={msg.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",marginBottom:sameAsPrev?3:10,animation:"fadeUp .25s ease"}}>
                 <div style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start",width:"100%"}}>
                   {!isMe&&<div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:sameAsPrev?"transparent":`linear-gradient(135deg,${col},${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",fontSize:13,fontWeight:800,color:"#07111e"}}>{sameAsPrev?"":(msg.displayName||"Р")[0].toUpperCase()}</div>}
                   <div style={{maxWidth:isVideo?"160px":"75%"}} onClick={()=>setSelectedMsg(isSel?null:msg.id)}>
-                    {!isMe&&!sameAsPrev&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:2,paddingLeft:4,display:"flex",alignItems:"center",gap:4}}>
+                    {!isMe&&!sameAsPrev&&<div style={{fontSize:10,color:col,fontWeight:700,marginBottom:2,paddingLeft:4,display:"flex",alignItems:"center",gap:4,cursor:"pointer"}} onClick={e=>{e.stopPropagation();setDmTarget({uid:msg.uid,displayName:msg.displayName,username:msg.username});}}>
                       {msg.topBadge&&<span style={{fontSize:12}}>{msg.topBadge}</span>}
-                      {msg.displayName}
-                      {msg.username&&<span style={{color:C.dimmer,fontWeight:400,marginLeft:2}}>@{msg.username}</span>}
+                      {hlSearch(msg.displayName||"")}
+                      {msg.username&&<span style={{color:C.dimmer,fontWeight:400,marginLeft:2}}>@{hlSearch(msg.username)}</span>}
                     </div>}
                     {/* Reply preview inside bubble */}
                     {msg.replyTo&&<div style={{margin:"0 0 6px",padding:"6px 10px",borderRadius:8,background:"rgba(255,255,255,.06)",borderLeft:`3px solid ${col}`,cursor:"default"}} onClick={e=>e.stopPropagation()}>
@@ -2904,7 +3025,7 @@
                       {showTs&&<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:isMe?"right":"left"}}>{ts}</div>}
                     </div>}
                     {!isVideo&&!isVoice&&!isImage&&<div style={{padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?`linear-gradient(135deg,#1a5276,${C.blue})`:"rgba(255,255,255,0.07)",border:isMe?"none":`1px solid ${C.border}`,color:C.text,fontSize:13.5,lineHeight:1.5}}>
-                      {msg.text}
+                      {hlSearch(msg.text||"")}
                       {showTs&&<div style={{fontSize:9,marginTop:4,opacity:.4,textAlign:"right",display:"flex",justifyContent:"flex-end",gap:6}}>
                         {msg.edited&&<span>изменено</span>}
                         <span>{ts}</span>
