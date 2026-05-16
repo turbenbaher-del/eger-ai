@@ -355,8 +355,8 @@ exports.askEger = functions
     const usageData = usageDoc.exists ? usageDoc.data() : {};
     const todayCount = usageData.date === today ? (usageData.count || 0) : 0;
 
-    if (todayCount >= 50) {
-      return { limited: true, message: "Лимит 50 сообщений в день исчерпан 🎣 Возвращайся завтра!" };
+    if (todayCount >= 200) {
+      return { limited: true, message: "Лимит 200 сообщений в день исчерпан 🎣 Возвращайся завтра!" };
     }
 
     // Контекстная информация для системного промпта
