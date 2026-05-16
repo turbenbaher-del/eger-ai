@@ -1486,7 +1486,7 @@
     return `📖 Кстати, ${ds} ты здесь поймал: ${fish}${wStr} на «${match.locationName}».\n\n`;
   }
 
-  function ChatScreen({ weather, userLat, userLon, user }) {
+  function ChatScreen({ weather, userLat, userLon, user, onLogin }) {
     const [msgs, setMsgs] = useState([{role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime()}]);
     const [input, setInput] = useState("");
     const [typing, setTyping] = useState(false);
@@ -1573,14 +1573,22 @@
           const r = getBotReplyCtx(queryText, weather, ctxRef.current);
           ctxRef.current = r.ctx; setLastTopic(r.ctx.lastTopic||"");
           const note = getDiaryNote(userText, userCatchesRef.current);
-          const errHint = e?.code||e?.message ? ` [${e?.code||e?.message}]` : "";
-          setMsgs(p=>[...p,{role:"assistant",type:"text",text:(note?note+r.text:r.text)+errHint,time:fmtTime()}]);
+          setMsgs(p=>[...p,{role:"assistant",type:"text",text:note?note+r.text:r.text,time:fmtTime()}]);
         }
       }
     };
 
     const send = useCallback((overrideText)=>{
       const text=(overrideText||input).trim(); if(!text) return;
+      if(!user){
+        setMsgs(p=>[...p,
+          {role:"user",type:"text",text,time:fmtTime()},
+          {role:"assistant",type:"text",text:"Чтобы общаться с Егерем ИИ, нужно войти в аккаунт 🎣",time:fmtTime(),needLogin:true}
+        ]);
+        if(!overrideText) setInput("");
+        onLogin?.();
+        return;
+      }
       const newMsg = {role:"user",type:"text",text,time:fmtTime()};
       msgsRef.current = [...msgsRef.current, newMsg];
       setMsgs(p=>[...p,newMsg]);
@@ -1588,7 +1596,7 @@
       logEvent("chat_message_sent");
       logEvent("ai_query_sent",{is_voice:false});
       callAI(text);
-    },[input,weather,newbieMode]);
+    },[input,weather,newbieMode,user]);
 
     const sendPhoto = async (file) => {
       if(!file) return;
@@ -5556,7 +5564,7 @@
         <main key={tab} style={{flex:1,overflow:"hidden",position:"relative",zIndex:1,animation:"fadeIn .2s ease"}}>
           {tab==="home"      && <HomeScreen onGoChat={()=>goTab("chat")} weather={weather} weatherLoading={weatherLoading} onRefreshWeather={loadWeather} setTab={goTab} userLat={userLat} userLon={userLon} user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="diary"     && <DiaryScreen user={user} onLogin={()=>setShowAuth(true)} userLat={userLat} userLon={userLon}/>}
-          {tab==="chat"      && <ChatScreen weather={weather} userLat={userLat} userLon={userLon} user={user}/>}
+          {tab==="chat"      && <ChatScreen weather={weather} userLat={userLat} userLon={userLon} user={user} onLogin={()=>setShowAuth(true)}/>}
           {tab==="mapall"    && <MapCombinedScreen userLat={userLat} userLon={userLon} user={user}/>}
           {(tab==="spots"||tab==="map") && <MapCombinedScreen userLat={userLat} userLon={userLon} user={user}/>}
           {tab==="community" && <CommunityScreen user={user} onLogin={()=>setShowAuth(true)}/>}
