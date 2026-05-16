@@ -440,6 +440,27 @@ ${catchesCtx}
     await usageRef.set({ date: today, count: todayCount + 1 }, { merge: true });
 
     functions.logger.info(`askEger uid=${context.auth.uid} in=${result.usage?.input_tokens} out=${result.usage?.output_tokens}`);
+
+    // Сохраняем Q&A в базу знаний для обучения встроенного бота (fire-and-forget)
+    const lastUserMsg = anthropicMessages[anthropicMessages.length - 1]?.content || "";
+    db.collection("bot_kb").add({
+      question: String(lastUserMsg).slice(0, 500),
+      answer: replyText,
+      keywords: extractKeywords(String(lastUserMsg)),
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    }).then(() => {
+      // Изредка чистим старые записи (вероятность 2%)
+      if (Math.random() < 0.02) {
+        db.collection("bot_kb").orderBy("timestamp", "asc").get().then(snap => {
+          if (snap.size > 500) {
+            const b = db.batch();
+            snap.docs.slice(0, snap.size - 500).forEach(d => b.delete(d.ref));
+            b.commit();
+          }
+        }).catch(() => {});
+      }
+    }).catch(e => functions.logger.warn("bot_kb save:", e.message));
+
     return { text: replyText };
   });
 
@@ -447,6 +468,20 @@ ${catchesCtx}
 // ────────────────────────────────────────────────────────────
 // 10. Автообновление ленты новостей о рыбалке (Google News RSS)
 // ────────────────────────────────────────────────────────────
+
+const KW_STOPWORDS = new Set([
+  'что','как','где','когда','какой','какая','какие','это','для','при','или','но',
+  'по','на','в','из','с','и','а','не','мне','меня','есть','там','тут','его','её',
+  'их','он','она','они','мы','вы','ты','я','был','была','было','будет','можно',
+  'нужно','надо','хочу','хочет','должен','очень','уже','ещё','тоже','также',
+  'если','то','так','всё','всех','всем','этот','этой','этим',
+]);
+function extractKeywords(text) {
+  return [...new Set(
+    text.toLowerCase().replace(/[^\wа-яё\s]/gi, " ").split(/\s+/)
+      .filter(w => w.length > 3 && !KW_STOPWORDS.has(w))
+  )].slice(0, 25);
+}
 
 function stripHtml(s) {
   return (s || "")

@@ -1502,6 +1502,29 @@
     const ctxRef = useRef({});
     const userCatchesRef = useRef([]);
     const msgsRef = useRef([{role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime()}]);
+    const kbRef = useRef([]);
+
+    // Загружаем базу знаний (накопленные ответы Claude)
+    useEffect(()=>{
+      if(!user) return;
+      const unsub = db.collection("bot_kb").orderBy("timestamp","desc").limit(300)
+        .onSnapshot(snap=>{ kbRef.current = snap.docs.map(d=>d.data()); }, ()=>{});
+      return unsub;
+    },[user]);
+
+    // Ищем похожий вопрос в базе знаний по ключевым словам
+    const findKbAnswer = (question) => {
+      const stopwords = new Set(['что','как','где','когда','какой','какая','это','для','при','или','но','по','на','в','из','с','и','а','не','мне','есть','там','его','её','их','мы','вы','ты','я','был','было','будет','можно','нужно','надо','хочу','если','так','всё','этот']);
+      const words = question.toLowerCase().replace(/[^\wа-яё\s]/gi," ").split(/\s+/).filter(w=>w.length>3&&!stopwords.has(w));
+      if(words.length===0) return null;
+      let best=null, bestScore=0;
+      for(const entry of kbRef.current){
+        const kws = entry.keywords||[];
+        const score = words.filter(w=>kws.some(k=>k.includes(w)||w.includes(k))).length;
+        if(score>bestScore&&score>=2){ bestScore=score; best=entry; }
+      }
+      return best?.answer||null;
+    };
 
     useEffect(()=>{
       if(!user?.uid) return;
@@ -1542,7 +1565,15 @@
         setMsgs(p => [...p, { role:"assistant", type:"text", text: replyText, time:fmtTime() }]);
       } catch(e) {
         setTyping(false);
-        setMsgs(p => [...p, { role:"assistant", type:"text", text: "⚠️ Не удалось связаться с ИИ. Проверь интернет и попробуй ещё раз.", time:fmtTime(), isError:true }]);
+        const kbAnswer = findKbAnswer(userText);
+        if(kbAnswer){
+          setMsgs(p=>[...p,{role:"assistant",type:"text",text:kbAnswer,time:fmtTime(),fromKb:true}]);
+        } else {
+          const r = getBotReplyCtx(queryText, weather, ctxRef.current);
+          ctxRef.current = r.ctx; setLastTopic(r.ctx.lastTopic||"");
+          const note = getDiaryNote(userText, userCatchesRef.current);
+          setMsgs(p=>[...p,{role:"assistant",type:"text",text:note?note+r.text:r.text,time:fmtTime()}]);
+        }
       }
     };
 

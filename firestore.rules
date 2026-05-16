@@ -88,6 +88,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // База знаний бота (накопленные ответы Claude) — читают клиенты, пишут только Cloud Functions
+    match /bot_kb/{docId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
     // Предложенные точки (модерируются)
     match /suggested_spots/{docId} {
       allow read: if false; // только Cloud Functions и модераторы
