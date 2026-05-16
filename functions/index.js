@@ -442,3 +442,170 @@ ${catchesCtx}
     functions.logger.info(`askEger uid=${context.auth.uid} in=${result.usage?.input_tokens} out=${result.usage?.output_tokens}`);
     return { text: replyText };
   });
+
+
+// ────────────────────────────────────────────────────────────
+// 10. Автообновление ленты новостей о рыбалке (Google News RSS)
+// ────────────────────────────────────────────────────────────
+
+function stripHtml(s) {
+  return (s || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+    .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g," ")
+    .replace(/\s+/g," ").trim();
+}
+
+function parseRssItems(xml) {
+  const items = [], rx = /<item>([\s\S]*?)<\/item>/g;
+  let m;
+  while ((m = rx.exec(xml)) !== null) {
+    const b = m[1];
+    const g = tag => {
+      const r = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`, "i");
+      return (b.match(r)?.[1] || "").trim();
+    };
+    const title = stripHtml(g("title"));
+    if (!title || title.length < 10) continue;
+    const link = g("link").replace(/\s/g, "");
+    const desc  = stripHtml(g("description")).slice(0, 300);
+    const source = stripHtml(b.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || "").trim() || "Новости";
+    items.push({ title, link, desc, source });
+  }
+  return items;
+}
+
+function newsTag(title, desc) {
+  const t = (title + " " + desc).toLowerCase();
+  if (/запрет|нерест|браконьер|штраф|нельзя|ограничен/.test(t)) return "Запрет";
+  if (/уровень воды|паводок|половодье|гидрол|сброс|разлив/.test(t)) return "Гидрология";
+  if (/постановлени|приказ|министерств|росрыбол|минприрод|официальн|закон/.test(t)) return "Официально";
+  if (/соревнован|чемпионат|турнир|кубок|спортивн/.test(t)) return "Соревнования";
+  if (/клёв|клев|ловится|поймали|улов|рыбачи|хороший/.test(t)) return "Клёв";
+  return "Аналитика";
+}
+
+const REGION_COORDS = [
+  ["ростов",         47.2357, 39.7015],
+  ["аксай",          47.2681, 39.8699],
+  ["азов",           47.1023, 39.4123],
+  ["таганрог",       47.2090, 38.9360],
+  ["новочеркасск",   47.4181, 40.0956],
+  ["батайск",        47.1456, 39.7456],
+  ["цимлянск",       47.6421, 42.0954],
+  ["волгодонск",     47.5134, 42.1523],
+  ["шахты",          47.7089, 40.2156],
+  ["семикаракорск",  47.5101, 40.8234],
+  ["константиновск", 47.5801, 41.0912],
+  ["белая калитва",  48.1789, 40.7734],
+  ["пролетарск",     46.7012, 41.7234],
+  ["сальск",         46.4739, 41.5388],
+];
+
+function newsCoords(text) {
+  const t = text.toLowerCase();
+  for (const [city, lat, lng] of REGION_COORDS) {
+    if (t.includes(city)) return { lat, lng };
+  }
+  return { lat: 47.2357, lng: 39.7015 };
+}
+
+function newsId(title) {
+  let h = 5381;
+  for (const c of title) h = (((h << 5) + h) ^ c.charCodeAt(0)) >>> 0;
+  return "n" + h.toString(36);
+}
+
+async function doFetchNews() {
+  const queries = [
+    "рыбалка Дон Ростов клёв улов рыболов",
+    "запрет нерест рыбалка Ростовская область 2026",
+    "уровень воды Дон Ростов паводок гидрология",
+    "рыбнадзор Росрыболовство Ростовская область новости",
+  ];
+
+  const raw = [];
+  for (const q of queries) {
+    try {
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ru&gl=RU&ceid=RU:ru`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!res.ok) { functions.logger.warn(`RSS ${res.status} for: ${q}`); continue; }
+      const xml = await res.text();
+      const items = parseRssItems(xml);
+      raw.push(...items);
+      functions.logger.info(`RSS "${q}": ${items.length} items`);
+    } catch(e) {
+      functions.logger.warn(`RSS error "${q}":`, e.message);
+    }
+  }
+
+  // Deduplicate by id
+  const seen = new Set(), unique = [];
+  for (const it of raw) {
+    const id = newsId(it.title);
+    if (!seen.has(id)) { seen.add(id); unique.push({ ...it, id }); }
+  }
+
+  // Compare with existing Firestore ids
+  const existingSnap = await db.collection("news").select().get();
+  const existingIds = new Set(existingSnap.docs.map(d => d.id));
+  const toAdd = unique.filter(it => !existingIds.has(it.id));
+
+  if (toAdd.length === 0) {
+    functions.logger.info("fetchFishingNews: no new items");
+    return 0;
+  }
+
+  const batch = db.batch();
+  for (const it of toAdd) {
+    const coords = newsCoords(it.title + " " + it.desc);
+    batch.set(db.collection("news").doc(it.id), {
+      title: it.title,
+      text: it.desc,
+      source: it.source,
+      link: it.link || "",
+      tag: newsTag(it.title, it.desc),
+      lat: coords.lat,
+      lng: coords.lng,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+  await batch.commit();
+  functions.logger.info(`fetchFishingNews: +${toAdd.length} items`);
+
+  // Prune oldest beyond 60
+  const allSnap = await db.collection("news").orderBy("timestamp", "asc").get();
+  if (allSnap.size > 60) {
+    const pruneSnap = allSnap.docs.slice(0, allSnap.size - 60);
+    const pb = db.batch();
+    pruneSnap.forEach(d => pb.delete(d.ref));
+    await pb.commit();
+    functions.logger.info(`fetchFishingNews: pruned ${pruneSnap.length} old items`);
+  }
+
+  return toAdd.length;
+}
+
+exports.fetchFishingNews = functions
+  .region("europe-west3")
+  .pubsub.schedule("0 */2 * * *")
+  .timeZone("UTC")
+  .onRun(async () => { await doFetchNews(); return null; });
+
+// Ручной запуск для любого авторизованного (cooldown 30 мин)
+exports.triggerFetchNews = functions
+  .region("europe-west3")
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Auth required");
+    const metaRef = db.collection("_meta").doc("news_fetch");
+    const meta = await metaRef.get();
+    if (meta.exists) {
+      const last = meta.data().lastFetch?.toDate();
+      if (last && Date.now() - last.getTime() < 30 * 60 * 1000) {
+        return { skipped: true, message: "Обновление было менее 30 минут назад" };
+      }
+    }
+    const added = await doFetchNews();
+    await metaRef.set({ lastFetch: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    return { added };
+  });

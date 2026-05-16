@@ -2901,6 +2901,17 @@
     const seenIdsRef=useRef(new Set());
     const firstSnapRef=useRef(true);
     const [notifEnabled,setNotifEnabled]=useState(()=>!!localStorage.getItem('fcm_token'));
+    const [refreshing,setRefreshing]=useState(false);
+
+    const triggerRefresh=async()=>{
+      if(refreshing||!user) return;
+      setRefreshing(true);
+      try{
+        const fn=functionsRegion.httpsCallable("triggerFetchNews");
+        await fn({});
+      }catch(e){ console.log("triggerFetchNews:",e); }
+      finally{ setRefreshing(false); }
+    };
 
     const requestNotif=async()=>{
       if(!("serviceWorker" in navigator)) return;
@@ -3033,10 +3044,11 @@
                     {notifEnabled?"Push вкл":"Уведомления"}
                   </button>
                 )}
-                <div style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:10,border:`1px solid ${C.border}`,color:C.dimmer,fontSize:11}}>
-                  <RefreshCw size={11} color={newsLoading?C.accent:C.dimmer} style={newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
-                  {newsLoading?"Загрузка...":"Авто"}
-                </div>
+                <button onClick={triggerRefresh} disabled={refreshing||!user} title={user?"Запросить свежие новости":"Войдите, чтобы обновить"}
+                  style={{display:"flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:10,border:`1px solid ${refreshing?C.accent:C.border}`,background:"none",color:refreshing?C.accent:C.dimmer,fontSize:11,cursor:user?"pointer":"default",transition:"all .2s"}}>
+                  <RefreshCw size={11} color={refreshing||newsLoading?C.accent:C.dimmer} style={refreshing||newsLoading?{animation:"spin 1s linear infinite"}:undefined}/>
+                  {newsLoading?"Загрузка...":refreshing?"Ищем...":"Обновить"}
+                </button>
               </div>
             </div>
             {newsLoading&&newsItems.length===0&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"48px 0",gap:12}}>
@@ -3044,13 +3056,14 @@
               <div style={{fontSize:12,color:C.muted}}>Загружаем новости...</div>
             </div>}
             {[...newsItems].sort((a,b)=>{
-              if(!nearestCity) return 0;
-              const kws=nearestCity.kw;
-              const match=n=>{const t=(n.title||"").toLowerCase()+(n.text||"").toLowerCase(); return kws.some(k=>t.includes(k));};
-              return match(b)-match(a);
+              if(!userLat||!userLon) return 0;
+              const da=a.lat&&a.lng?haversine(userLat,userLon,a.lat,a.lng):9999;
+              const db2=b.lat&&b.lng?haversine(userLat,userLon,b.lat,b.lng):9999;
+              return da-db2;
             }).map(n=>{
               const isNew=newIds.has(n.id);
-              const isLocal=nearestCity&&nearestCity.kw.some(k=>((n.title||"").toLowerCase()+(n.text||"").toLowerCase()).includes(k));
+              const dist=userLat&&userLon&&n.lat&&n.lng?Math.round(haversine(userLat,userLon,n.lat,n.lng)):null;
+              const isLocal=dist!==null&&dist<100||(nearestCity&&nearestCity.kw.some(k=>((n.title||"").toLowerCase()+(n.text||"").toLowerCase()).includes(k)));
               return(
                 <div key={n.id} style={{...glass(),padding:"14px",marginBottom:10,animation:isNew?"newsSlideIn .5s cubic-bezier(.22,.61,.36,1), glowFlash 1.4s ease .35s":"fadeUp .3s ease",border:isNew?`1px solid rgba(239,68,68,.4)`:isLocal?`1px solid ${C.borderHi}`:`1px solid ${C.border}`,position:"relative",overflow:"hidden"}}>
                   {isNew&&<div style={{position:"absolute",top:0,left:0,right:0,height:2,background:"linear-gradient(90deg,#ef4444,#f59e0b)",animation:"pulseGlow 2s ease 3"}}/>}
@@ -3060,6 +3073,7 @@
                       <span style={{fontSize:10,fontWeight:700,color:tagColor(n.tag),background:`${tagColor(n.tag)}20`,borderRadius:6,padding:"3px 8px"}}>{n.tag}</span>
                       {isNew&&<span style={{fontSize:9,fontWeight:800,color:"#ef4444",background:"rgba(239,68,68,.15)",borderRadius:6,padding:"2px 6px"}}>НОВОЕ</span>}
                       {isLocal&&!isNew&&<span style={{fontSize:9,fontWeight:800,color:C.accent,background:C.accentDim,borderRadius:6,padding:"2px 6px"}}>📍 рядом</span>}
+                      {dist!==null&&!isNew&&<span style={{fontSize:9,color:C.dimmer,background:`${C.border}50`,borderRadius:6,padding:"2px 6px"}}>{dist<1?`<1 км`:dist>=1000?`${Math.round(dist/100)/10} тыс. км`:`${dist} км`}</span>}
                     </div>
                     <span style={{fontSize:10,color:C.dimmer}}>{n.date}</span>
                   </div>
