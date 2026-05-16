@@ -1032,28 +1032,127 @@
       return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{display:"inline-block",color:isUser?"#07111e":C.accent,textDecoration:"underline",cursor:"pointer",wordBreak:"break-all",fontWeight:isMaps||isWB||isOzon||isYM?700:400}}>{label}</a>;
     });
 
+  /* ── Date divider ── */
+  function DateDivider({ label }) {
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:10,margin:"14px 0 10px",userSelect:"none"}}>
+        <div style={{flex:1,height:1,background:C.border}}/>
+        <span style={{fontSize:11,color:C.muted,fontWeight:600,padding:"3px 12px",borderRadius:20,background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`}}>{label}</span>
+        <div style={{flex:1,height:1,background:C.border}}/>
+      </div>
+    );
+  }
+
   /* ── Bubble (AI chat) ── */
-  function Bubble({ msg }) {
-    const isUser=msg.role==="user";
+  function Bubble({ msg, onReply, onDelete, onReact, prevMsg, nextMsg }) {
+    const isUser = msg.role==="user";
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [reactOpen, setReactOpen] = useState(false);
+    const [swipeX, setSwipeX] = useState(0);
+    const longTimer = useRef(null);
+    const t0x = useRef(0), t0y = useRef(0), didSwipe = useRef(false);
+
+    const isPrevSame = prevMsg && prevMsg.role===msg.role;
+    const isNextSame = nextMsg && nextMsg.role===msg.role;
+
+    const br = isUser
+      ? `18px 18px ${isNextSame?"6px":"18px"} ${isPrevSame?"6px":"18px"}`
+      : `${isPrevSame?"6px":"18px"} 18px 18px ${isNextSame?"6px":"18px"}`;
+
     const bg  = isUser?`linear-gradient(135deg,#1a8a50,${C.accent})`:msg.isError?"rgba(239,68,68,0.1)":"rgba(255,255,255,0.07)";
     const col = isUser?"#07111e":C.text;
-    const br  = isUser?"18px 18px 4px 18px":"18px 18px 18px 4px";
     const brd = isUser?"none":msg.isError?`1px solid rgba(239,68,68,0.4)`:`1px solid ${C.border}`;
+    const REACTS = ["👍","❤️","😂","😮","🔥","🎣","🐟","👎"];
+
+    const onTS = e => {
+      t0x.current=e.touches[0].clientX; t0y.current=e.touches[0].clientY; didSwipe.current=false;
+      longTimer.current=setTimeout(()=>{ if(!didSwipe.current) setMenuOpen(true); },580);
+    };
+    const onTM = e => {
+      const dx=e.touches[0].clientX-t0x.current, dy=Math.abs(e.touches[0].clientY-t0y.current);
+      if(dy>12){clearTimeout(longTimer.current);return;}
+      if(dx>8){didSwipe.current=true;clearTimeout(longTimer.current);setSwipeX(Math.min(dx,62));}
+    };
+    const onTE = () => { clearTimeout(longTimer.current); if(swipeX>50) onReply&&onReply(msg); setSwipeX(0); };
+
+    const reactions = msg.reactions||{};
+    const hasReactions = Object.keys(reactions).length>0;
+    const ticks = isUser?(msg.read?"✓✓":"✓"):null;
+    const tickCol = msg.read?"#22d3ee":"rgba(7,17,30,0.5)";
+    const showAvatar = !isUser && !isPrevSame;
+
     return (
-      <div style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",marginBottom:12,animation:"fadeUp .3s ease"}}>
-        {!isUser&&<div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:8,alignSelf:"flex-end",boxShadow:`0 0 14px ${C.accentGlow}`}}><Fish size={17} color="#07111e"/></div>}
-        <div style={{maxWidth:"80%"}}>
-          {msg.type==="image"&&<div style={{marginBottom:msg.text?6:0}}>
-            <img src={msg.imageUrl} alt="" onClick={()=>window.open(msg.imageUrl,"_blank")} style={{maxWidth:"100%",maxHeight:220,borderRadius:br,display:"block",cursor:"pointer",objectFit:"cover"}}/>
-          </div>}
-          {msg.type==="voice"&&<VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isUser} col={C.accent}/>}
-          {(msg.text||(!msg.type||msg.type==="text"))&&msg.type!=="voice"&&<div style={{padding:"11px 15px",borderRadius:br,background:bg,border:brd,color:col,fontSize:13.5,lineHeight:1.6,fontWeight:isUser?600:400,backdropFilter:"blur(12px)",whiteSpace:"pre-wrap"}}>
-            {msg.voice&&<span style={{fontSize:11,opacity:.6,marginBottom:4,display:"block"}}>🎤 голосовое</span>}
-            {renderLinks(msg.text,isUser)}
-            <div style={{fontSize:10,marginTop:5,opacity:.5,textAlign:"right",color:col}}>{msg.time}</div>
-          </div>}
-          {msg.type==="image"&&<div style={{fontSize:10,marginTop:3,opacity:.4,textAlign:isUser?"right":"left",color:C.text}}>{msg.time}</div>}
+      <div style={{position:"relative",marginBottom:isNextSame?2:8}}>
+        {(menuOpen||reactOpen)&&<div style={{position:"fixed",inset:0,zIndex:200}} onClick={()=>{setMenuOpen(false);setReactOpen(false);}}/>}
+        {swipeX>12&&<div style={{position:"absolute",left:isUser?"auto":-28,right:isUser?-28:"auto",top:"50%",transform:"translateY(-50%)",fontSize:16,opacity:Math.min(swipeX/52,1),pointerEvents:"none",zIndex:1}}>↩️</div>}
+
+        <div style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",transform:`translateX(${swipeX}px)`,transition:swipeX===0?"transform .18s ease":"none",animation:"fadeUp .25s ease"}}
+          onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
+          onContextMenu={e=>{e.preventDefault();setMenuOpen(true);}}
+        >
+          {!isUser&&(
+            <div style={{width:34,flexShrink:0,marginRight:8,alignSelf:"flex-end"}}>
+              {showAvatar&&<div style={{width:34,height:34,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 14px ${C.accentGlow}`}}><Fish size={17} color="#07111e"/></div>}
+            </div>
+          )}
+          <div style={{maxWidth:"80%"}}>
+            {msg.replyTo&&(
+              <div style={{borderLeft:`3px solid ${C.accent}`,paddingLeft:8,paddingTop:4,paddingBottom:4,marginBottom:2,background:"rgba(46,204,113,0.07)",borderRadius:"8px 8px 0 0",overflow:"hidden"}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.accent,marginBottom:1}}>{msg.replyTo.role==="user"?"Вы":"Егерь ИИ"}</div>
+                <div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:220}}>{msg.replyTo.type==="image"?"📷 Фото":(msg.replyTo.text||"").slice(0,70)}</div>
+              </div>
+            )}
+            {msg.type==="image"&&<div style={{marginBottom:msg.text?4:0}}><img src={msg.imageUrl} alt="" onClick={()=>window.open(msg.imageUrl,"_blank")} style={{maxWidth:"100%",maxHeight:220,borderRadius:br,display:"block",cursor:"pointer",objectFit:"cover"}}/></div>}
+            {msg.type==="voice"&&<VoiceMessage url={msg.voiceUrl} dur={msg.dur} isMe={isUser} col={C.accent}/>}
+            {msg.type!=="voice"&&(msg.text||(!msg.type||msg.type==="text"))&&(
+              <div style={{padding:"10px 13px",borderRadius:msg.replyTo?`0 12px 12px ${isUser?"6px":"6px"}`:br,background:bg,border:brd,color:col,fontSize:13.5,lineHeight:1.6,fontWeight:isUser?600:400,backdropFilter:"blur(12px)",whiteSpace:"pre-wrap"}}>
+                {msg.voice&&<span style={{fontSize:11,opacity:.6,marginBottom:4,display:"block"}}>🎤 голосовое</span>}
+                {renderLinks(msg.text,isUser)}
+                <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:3,marginTop:4}}>
+                  <span style={{fontSize:10,opacity:.5,color:col}}>{msg.time}</span>
+                  {ticks&&<span style={{fontSize:11,color:tickCol,fontWeight:msg.read?700:400,letterSpacing:-0.5}}>{ticks}</span>}
+                </div>
+              </div>
+            )}
+            {msg.type==="image"&&<div style={{fontSize:10,marginTop:3,opacity:.4,textAlign:isUser?"right":"left",color:C.text}}>{msg.time}</div>}
+            {hasReactions&&(
+              <div style={{display:"flex",gap:4,marginTop:5,flexWrap:"wrap",justifyContent:isUser?"flex-end":"flex-start"}}>
+                {Object.entries(reactions).map(([e,n])=>(
+                  <button key={e} onClick={()=>onReact&&onReact(msg,e)} style={{padding:"2px 8px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.text,fontSize:13,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:4}}>
+                    {e}{n>1&&<span style={{fontSize:10,fontWeight:800,color:C.accent}}>{n}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={e=>{e.stopPropagation();setReactOpen(p=>!p);}} style={{alignSelf:"flex-end",width:22,height:22,borderRadius:"50%",border:`1px solid ${C.border}`,background:"rgba(255,255,255,.05)",color:C.muted,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginLeft:isUser?0:4,marginRight:isUser?4:0,marginBottom:2,opacity:.55}}>😊</button>
         </div>
+
+        {reactOpen&&(
+          <div style={{position:"absolute",zIndex:300,bottom:36,left:isUser?"auto":38,right:isUser?4:"auto",background:"rgba(10,22,38,.97)",border:`1px solid ${C.border}`,borderRadius:24,padding:"8px 12px",display:"flex",gap:6,boxShadow:"0 8px 32px rgba(0,0,0,.6)"}}>
+            {REACTS.map(e=>(
+              <button key={e} onClick={()=>{onReact&&onReact(msg,e);setReactOpen(false);}} style={{fontSize:20,background:"none",border:"none",cursor:"pointer",transition:"transform .12s"}}
+                onMouseEnter={ev=>ev.currentTarget.style.transform="scale(1.35)"} onMouseLeave={ev=>ev.currentTarget.style.transform="scale(1)"}
+              >{e}</button>
+            ))}
+          </div>
+        )}
+
+        {menuOpen&&(
+          <div style={{position:"absolute",zIndex:300,bottom:40,left:isUser?"auto":46,right:isUser?4:"auto",background:"rgba(10,22,38,.97)",border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden",boxShadow:"0 8px 32px rgba(0,0,0,.65)",minWidth:165}}>
+            {[
+              {ico:"↩️",lbl:"Ответить",fn:()=>{onReply&&onReply(msg);setMenuOpen(false);}},
+              {ico:"📋",lbl:"Копировать",fn:()=>{try{navigator.clipboard.writeText(msg.text||"");}catch(x){}setMenuOpen(false);}},
+              ...(isUser?[{ico:"🗑️",lbl:"Удалить",fn:()=>{onDelete&&onDelete(msg);setMenuOpen(false);},col:"#ef4444"}]:[]),
+            ].map(it=>(
+              <button key={it.lbl} onClick={it.fn}
+                style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"12px 16px",background:"none",border:"none",color:it.col||C.text,fontSize:14,cursor:"pointer",textAlign:"left"}}
+                onMouseEnter={ev=>ev.currentTarget.style.background="rgba(255,255,255,.08)"}
+                onMouseLeave={ev=>ev.currentTarget.style.background="none"}
+              ><span>{it.ico}</span><span>{it.lbl}</span></button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -1487,21 +1586,27 @@
   }
 
   function ChatScreen({ weather, userLat, userLon, user, onLogin }) {
-    const [msgs, setMsgs] = useState([{role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime()}]);
+    const _initMsg = {role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime(),id:"msg_0",date:new Date().toLocaleDateString("ru-RU")};
+    const [msgs, setMsgs] = useState([_initMsg]);
     const [input, setInput] = useState("");
     const [typing, setTyping] = useState(false);
     const [voiceRec, setVoiceRec] = useState(false);
     const [voiceText, setVoiceText] = useState("");
     const [newbieMode, setNewbieMode] = useState(()=>localStorage.getItem("eger_newbie")==="1");
     const [lastTopic, setLastTopic] = useState("");
+    const [replyTo, setReplyTo] = useState(null);
+    const [atBottom, setAtBottom] = useState(true);
+    const [unreadCount, setUnreadCount] = useState(0);
     const bottomRef = useRef(null);
+    const scrollRef = useRef(null);
     const photoRef = useRef(null);
     const camRef = useRef(null);
     const srRef = useRef(null);
     const srTextRef = useRef("");
     const ctxRef = useRef({});
     const userCatchesRef = useRef([]);
-    const msgsRef = useRef([{role:"assistant",type:"text",text:"Здорово, рыбак! Я — Егерь ИИ, знаю каждый омут Дона и Ростовской области.\n\nСпрашивай про клёв, снасти, места — пиши, присылай фото улова или места, запиши голосовой 🎣",time:fmtTime()}]);
+    const msgIdRef = useRef(1);
+    const msgsRef = useRef([_initMsg]);
     const kbRef = useRef([]);
 
     // Загружаем базу знаний (накопленные ответы Claude)
@@ -1534,13 +1639,46 @@
         .catch(()=>{});
     },[user?.uid]);
 
-    useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
+    useEffect(()=>{ if(atBottom) bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
     useEffect(()=>{ msgsRef.current = msgs; },[msgs]);
+
+    const makeMsg = (base) => ({...base, id:`msg_${++msgIdRef.current}`, date:base.date||new Date().toLocaleDateString("ru-RU")});
+    const markAsRead = () => setMsgs(p=>p.map(m=>m.role==="user"?{...m,read:true}:m));
+    const handleScroll = () => {
+      const el=scrollRef.current; if(!el) return;
+      const near=el.scrollHeight-el.scrollTop-el.clientHeight<120;
+      setAtBottom(near);
+      if(near) setUnreadCount(0);
+    };
+    const handleReply = (msg) => setReplyTo(msg);
+    const handleDelete = (msg) => {
+      setMsgs(p=>p.filter(m=>m.id!==msg.id));
+      msgsRef.current=msgsRef.current.filter(m=>m.id!==msg.id);
+    };
+    const handleReact = (msg, emoji) => {
+      setMsgs(p=>p.map(m=>{
+        if(m.id!==msg.id) return m;
+        const r={...(m.reactions||{})}; r[emoji]=(r[emoji]||0)+1; return {...m,reactions:r};
+      }));
+    };
+    const fmtDateLabel = (d) => {
+      const today=new Date().toLocaleDateString("ru-RU"), yest=new Date(Date.now()-86400000).toLocaleDateString("ru-RU");
+      return d===today?"Сегодня":d===yest?"Вчера":d;
+    };
+    const renderList = useMemo(()=>{
+      const list=[]; let lastDate=null;
+      for(let i=0;i<msgs.length;i++){
+        const m=msgs[i], md=m.date||new Date().toLocaleDateString("ru-RU");
+        if(md!==lastDate){ list.push({_type:"date",label:fmtDateLabel(md),key:`d_${md}`}); lastDate=md; }
+        list.push({...m,_idx:i});
+      }
+      return list;
+    },[msgs]);
 
     // Fallback local bot reply (used if Cloud Function fails)
     const aiReply = (text, delay=1400) => {
       setTyping(true);
-      setTimeout(()=>{ setTyping(false); setMsgs(p=>[...p,{role:"assistant",type:"text",text,time:fmtTime()}]); }, delay+Math.random()*600);
+      setTimeout(()=>{ setTyping(false); markAsRead(); setMsgs(p=>[...p,makeMsg({role:"assistant",type:"text",text,time:fmtTime()})]); }, delay+Math.random()*600);
     };
 
     // Real AI via Claude (Cloud Function) with local fallback
@@ -1562,37 +1700,39 @@
         const replyText = result.data.limited ? result.data.message : result.data.text;
         const r = getBotReplyCtx(queryText, weather, ctxRef.current);
         ctxRef.current = r.ctx; setLastTopic(r.ctx.lastTopic || "");
-        setMsgs(p => [...p, { role:"assistant", type:"text", text: replyText, time:fmtTime() }]);
+        markAsRead(); setMsgs(p => [...p, makeMsg({ role:"assistant", type:"text", text: replyText, time:fmtTime() })]);
       } catch(e) {
         setTyping(false);
         console.error("[askEger] error:", e?.code, e?.message, e);
         const kbAnswer = findKbAnswer(userText);
         if(kbAnswer){
-          setMsgs(p=>[...p,{role:"assistant",type:"text",text:kbAnswer,time:fmtTime(),fromKb:true}]);
+          markAsRead(); setMsgs(p=>[...p,makeMsg({role:"assistant",type:"text",text:kbAnswer,time:fmtTime(),fromKb:true})]);
         } else {
           const r = getBotReplyCtx(queryText, weather, ctxRef.current);
           ctxRef.current = r.ctx; setLastTopic(r.ctx.lastTopic||"");
           const note = getDiaryNote(userText, userCatchesRef.current);
-          setMsgs(p=>[...p,{role:"assistant",type:"text",text:note?note+r.text:r.text,time:fmtTime()}]);
+          markAsRead(); setMsgs(p=>[...p,makeMsg({role:"assistant",type:"text",text:note?note+r.text:r.text,time:fmtTime()})]);
         }
       }
     };
 
     const send = useCallback((overrideText)=>{
       const text=(overrideText||input).trim(); if(!text) return;
-      const newMsg = {role:"user",type:"text",text,time:fmtTime()};
+      const newMsg = makeMsg({role:"user",type:"text",text,time:fmtTime(),replyTo:replyTo||undefined});
       msgsRef.current = [...msgsRef.current, newMsg];
       setMsgs(p=>[...p,newMsg]);
       if(!overrideText) setInput("");
+      setReplyTo(null);
+      setAtBottom(true);
       logEvent("chat_message_sent");
       logEvent("ai_query_sent",{is_voice:false});
       callAI(text);
-    },[input,weather,newbieMode]);
+    },[input,weather,newbieMode,replyTo]);
 
     const sendPhoto = async (file) => {
       if(!file) return;
       const localUrl = URL.createObjectURL(file);
-      setMsgs(p=>[...p,{role:"user",type:"image",imageUrl:localUrl,time:fmtTime()}]);
+      setMsgs(p=>[...p,makeMsg({role:"user",type:"image",imageUrl:localUrl,time:fmtTime()})]);
       aiReply(pick(PHOTO_REPLIES), 1800);
       try {
         const ref = storage.ref(`chat_photos/egер_${Date.now()}.jpg`);
@@ -1631,7 +1771,7 @@
         srTextRef.current = "";
         setVoiceText("");
         if (text) {
-          const newMsg = {role:"user",type:"text",text,time:fmtTime(),voice:true};
+          const newMsg = makeMsg({role:"user",type:"text",text,time:fmtTime(),voice:true});
           msgsRef.current = [...msgsRef.current, newMsg];
           setMsgs(p=>[...p,newMsg]);
           logEvent("chat_message_sent",{method:"voice"});
@@ -1665,7 +1805,7 @@
     ] : QUICK_MAP.default);
 
     return (
-      <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{display:"flex",flexDirection:"column",height:"100%",position:"relative"}}>
         <div style={{padding:"10px 16px 6px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${C.accent},${C.cyan})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 12px ${C.accentGlow}`}}><Fish size={17} color="#07111e"/></div>
           <div style={{flex:1}}>
@@ -1681,16 +1821,43 @@
             {newbieMode?"🐣 Новичок":"👨‍🎣 Рыбак"}
           </button>
         </div>
-        <div style={{flex:1,overflowY:"auto",padding:"14px 14px 6px"}}>
-          {msgs.map((m,i)=><Bubble key={i} msg={m}/>)}
+
+        <div ref={scrollRef} onScroll={handleScroll} style={{flex:1,overflowY:"auto",padding:"14px 14px 6px"}}>
+          {renderList.map((item,i)=>{
+            if(item._type==="date") return <DateDivider key={item.key} label={item.label}/>;
+            const prev=renderList[i-1], next=renderList[i+1];
+            return <Bubble key={item.id||i} msg={item}
+              prevMsg={prev&&prev._type!=="date"?prev:null}
+              nextMsg={next&&next._type!=="date"?next:null}
+              onReply={handleReply} onDelete={handleDelete} onReact={handleReact}/>;
+          })}
           {typing&&<Typing/>}
           <div ref={bottomRef}/>
         </div>
+
+        {!atBottom&&(
+          <button onClick={()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});setAtBottom(true);setUnreadCount(0);}}
+            style={{position:"absolute",bottom:200,right:14,width:42,height:42,borderRadius:"50%",background:"rgba(7,17,30,.95)",border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 20px rgba(0,0,0,.5)",zIndex:50}}>
+            ↓
+            {unreadCount>0&&<span style={{position:"absolute",top:-5,right:-3,background:C.accent,color:"#07111e",fontSize:10,fontWeight:800,minWidth:18,height:18,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px"}}>{unreadCount}</span>}
+          </button>
+        )}
+
         <div style={{display:"flex",gap:8,padding:"6px 14px",overflowX:"auto",scrollbarWidth:"none"}}>
           {quick.map(q=>(<button key={q} onClick={()=>{ send(q); }} style={{flexShrink:0,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",animation:"fadeIn .3s ease"}}>{q}</button>))}
         </div>
 
-        {/* Распознавание речи */}
+        {replyTo&&(
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",background:"rgba(46,204,113,.07)",borderTop:`1px solid rgba(46,204,113,.2)`}}>
+            <div style={{width:3,alignSelf:"stretch",background:C.accent,borderRadius:2,flexShrink:0}}/>
+            <div style={{flex:1,overflow:"hidden"}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.accent,marginBottom:1}}>{replyTo.role==="user"?"Вы":"Егерь ИИ"}</div>
+              <div style={{fontSize:12,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{replyTo.type==="image"?"📷 Фото":(replyTo.text||"").slice(0,60)}</div>
+            </div>
+            <button onClick={()=>setReplyTo(null)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:22,lineHeight:1,padding:4}}>×</button>
+          </div>
+        )}
+
         {voiceRec&&<div style={{padding:"10px 14px",background:`rgba(46,204,113,.08)`,borderTop:`1px solid rgba(46,204,113,.25)`,display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:12,height:12,borderRadius:"50%",background:C.accent,animation:"pulseGlow .6s ease infinite",flexShrink:0}}/>
           <span style={{flex:1,fontSize:13,color:voiceText?C.text:C.muted,fontStyle:voiceText?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -1700,12 +1867,10 @@
         </div>}
 
         <div style={{padding:"8px 14px 14px",background:"rgba(7,17,30,.92)",backdropFilter:"blur(20px)",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,alignItems:"flex-end"}}>
-          {/* Фото из галереи */}
           <button onClick={()=>photoRef.current?.click()} style={{width:40,height:40,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <ImageIcon size={17} color={C.muted}/>
           </button>
           <input ref={photoRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>sendPhoto(e.target.files[0])}/>
-          {/* Камера */}
           <button onClick={()=>camRef.current?.click()} style={{width:40,height:40,borderRadius:"50%",border:"none",flexShrink:0,cursor:"pointer",background:C.surfaceHi,display:"flex",alignItems:"center",justifyContent:"center"}}>
             <Camera size={17} color={C.muted}/>
           </button>
@@ -1713,7 +1878,7 @@
 
           <textarea rows={1} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-            placeholder="Спроси Егеря..." style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:16,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}}
+            placeholder={replyTo?"Ответить...":"Спроси Егеря..."} style={{flex:1,resize:"none",background:C.surfaceHi,border:`1px solid ${C.border}`,borderRadius:16,padding:"11px 14px",color:C.text,fontSize:14,outline:"none",lineHeight:1.4,boxSizing:"border-box"}}
             onFocus={e=>e.target.style.borderColor=C.borderHi} onBlur={e=>e.target.style.borderColor=C.border}/>
 
           {input.trim()
