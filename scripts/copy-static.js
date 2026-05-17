@@ -9,6 +9,14 @@ const files = [
   'manifest.json',
   'firebase-messaging-sw.js',
 ];
+
+// Copy icon-48.png as favicon.ico for search engines
+const faviconSrc = join(root, 'icons', 'icon-48.png');
+const faviconDst = join(dist, 'favicon.ico');
+if (existsSync(faviconSrc)) {
+  cpSync(faviconSrc, faviconDst);
+  console.log('  copied favicon.ico');
+}
 const dirs = ['icons'];
 
 for (const f of files) {

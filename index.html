@@ -12,19 +12,38 @@
   <meta name="msapplication-TileColor" content="#07111e">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="shortcut icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="96x96" href="/icons/icon-96.png">
   <link rel="icon" type="image/png" sizes="48x48" href="/icons/icon-48.png">
-  <title>Егерь ИИ</title>
+  <script>(function(){var h=location.hostname;if(h==='www.eger-ai.app'||h==='eger-ai.web.app')location.replace('https://eger-ai.app'+location.pathname+location.search+location.hash);})();</script>
+  <title>Егерь ИИ — Прогноз клёва и рыбалка на Дону | Ростовская область</title>
+  <meta name="description" content="Егерь ИИ — умный помощник рыбака для Ростовской области. Прогноз клёва на Дону, карта рыболовных точек, дневник уловов и живое сообщество рыбаков. Бесплатно, без регистрации.">
+  <meta name="keywords" content="прогноз клёва Ростов, рыбалка на Дону, приложение для рыбака, клёв рыбы сегодня, рыболовные точки Ростов, ИИ помощник рыбака, рыбалка Ростовская область, прогноз клёва судак щука, где ловить рыбу Ростов, рыболовный дневник">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://eger-ai.app/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://eger-ai.app/">
+  <meta property="og:title" content="Егерь ИИ — Умный помощник рыбака">
+  <meta property="og:description" content="Прогноз клёва на Дону, карта рыболовных точек и ИИ-чат для рыбаков Ростовской области. Бесплатно.">
+  <meta property="og:image" content="https://eger-ai.app/icons/icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:site_name" content="Егерь ИИ">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Егерь ИИ — Умный помощник рыбака">
+  <meta name="twitter:description" content="Прогноз клёва на Дону, карта точек и ИИ-чат для рыбаков Ростовской области">
+  <meta name="twitter:image" content="https://eger-ai.app/icons/icon-512.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://api-maps.yandex.ru/2.1/?apikey=9076cba5-0cf8-408f-a450-9920870c588b&lang=ru_RU&load=package.full" type="text/javascript"></script>
   <style>
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     html, body, #root { height:100%; background:#07111e; }
     body { font-family:'Nunito',sans-serif; color:#e8f4f0; overscroll-behavior:none; }
     button, input, textarea, select { font-family:inherit; }
+    input, textarea, select { font-size:16px!important; }
     textarea::placeholder, input::placeholder { color:rgba(232,244,240,0.3); }
     ::-webkit-scrollbar { display:none; }
     @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
@@ -37,6 +56,9 @@
     @keyframes glowFlash { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} 45%{box-shadow:0 0 22px 5px rgba(239,68,68,.32)} }
     @keyframes textSwap { 0%{opacity:0;transform:translateY(6px)} 8%,92%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-6px)} }
     @keyframes fabPulse { 0%,100%{transform:scale(1);box-shadow:0 4px 20px rgba(26,138,80,.5)} 50%{transform:scale(1.06);box-shadow:0 6px 32px rgba(46,204,113,.75)} }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; } }
+    :focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; border-radius: 4px; }
+    button:focus:not(:focus-visible) { outline: none; }
   </style>
 </head>
 <body>
@@ -46,14 +68,6 @@
   <div style="font-size:12px;color:rgba(232,244,240,0.4);letter-spacing:1.5px;margin-bottom:36px">Умный помощник рыбака</div>
   <div style="width:36px;height:36px;border-radius:50%;border:3px solid #2ecc71;border-top-color:transparent;animation:spin 1s linear infinite"></div>
 </div>
-<script>
-  window.addEventListener("load",function(){
-    setTimeout(function(){
-      var s=document.getElementById("splash");
-      if(s){s.style.opacity="0";setTimeout(function(){s&&s.remove();},500);}
-    },600);
-  });
-</script>
 <div id="root"></div>
 <script type="module" src="/src/main.jsx"></script>
 </body>

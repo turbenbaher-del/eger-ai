@@ -1,4 +1,5 @@
 {
+  "id": "/?source=pwa",
   "name": "Егерь ИИ",
   "short_name": "Егерь",
   "description": "ИИ-помощник рыбака: прогноз клёва, новости, дневник уловов",
@@ -33,6 +34,36 @@
       "purpose": "any maskable"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Спросить ИИ",
+      "short_name": "ИИ",
+      "url": "/?tab=chat",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Добавить улов",
+      "short_name": "+ Улов",
+      "url": "/?action=add-catch",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Прогноз клёва",
+      "short_name": "Клёв",
+      "url": "/?tab=home",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ],
+  "share_target": {
+    "action": "/?action=add-catch",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "files": [{ "name": "photo", "accept": ["image/*"] }]
+    }
+  },
   "screenshots": [],
   "categories": ["sports", "lifestyle", "weather"]
 }

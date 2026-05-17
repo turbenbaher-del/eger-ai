@@ -2,5 +2,10 @@ serve.ps1
 EgerAI.jsx
 EgerAI_artifact.jsx
 functions/node_modules/
+functions/lib/
+functions/.env
 node_modules/
 dist/
+.env
+.env.local
+.firebase/

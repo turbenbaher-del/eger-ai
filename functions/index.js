@@ -1,4 +1,5 @@
 const functions = require("firebase-functions");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
@@ -125,19 +126,48 @@ exports.aggregateLeaderboard = functions
 // 3. Обновление метаданных Water Level в header Firestore
 //    (каждый час — тригерится через Pub/Sub)
 // ────────────────────────────────────────────────────────────
-exports.updateWaterLevelMeta = functions
+// Уровень воды Дона через Open-Meteo GloFAS (расход → уровень)
+// Координаты 47.23,39.72 = русло Дона у Ростова (проверено: даёт ~786 м³/с)
+// Конвертация: среднемноголетний расход ~900 м³/с ≈ 0 см, ±15 м³/с ≈ 1 см
+async function parsWaterLevel() {
+  const url = "https://flood-api.open-meteo.com/v1/flood?latitude=47.23&longitude=39.72&daily=river_discharge&forecast_days=1&past_days=1";
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+  const data = await res.json();
+
+  const discharges = data.daily?.river_discharge || [];
+  const discharge = discharges.find(v => v !== null && v > 10);
+  if (discharge === undefined || discharge === null) throw new Error("No discharge data");
+
+  // Конвертация в относительный уровень: 900 м³/с = норма = 0 см
+  const level = Math.round((discharge - 900) / 15);
+  const result = {
+    level,
+    discharge: Math.round(discharge),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    source: "open-meteo-glofas",
+  };
+
+  await db.collection("water_levels").doc("don-rostov").set(result);
+  functions.logger.info(`[water] discharge=${Math.round(discharge)} м³/с → level=${level} см`);
+  return { level, discharge: Math.round(discharge) };
+}
+
+exports.fetchWaterLevel = functions
   .region("europe-west3")
   .pubsub.schedule("0 * * * *")
-  .timeZone("UTC")
-  .onRun(async () => {
-    const doc = await db.collection("water_levels").doc("don-rostov").get();
-    if (!doc.exists) return;
-    const data = doc.data();
-    const updatedAt = data.updatedAt ? data.updatedAt.toDate() : null;
-    const stale = !updatedAt || (Date.now() - updatedAt.getTime()) > 3 * 60 * 60 * 1000;
-    if (stale) {
-      // Просто помечаем что нужно обновление — сам уровень обновляет бот
-      functions.logger.warn("Water level data is stale (>3h), check bot");
+  .timeZone("Europe/Moscow")
+  .onRun(async () => { try { await parsWaterLevel(); } catch(e) { functions.logger.error("[water]", e.message); } });
+
+// HTTP-триггер для ручного теста: GET https://.../triggerFetchWaterLevel
+exports.triggerFetchWaterLevel = functions
+  .region("europe-west3")
+  .https.onRequest(async (req, res) => {
+    try {
+      const result = await parsWaterLevel();
+      res.json({ ok: true, ...result });
+    } catch(e) {
+      res.status(500).json({ ok: false, error: e.message });
     }
   });
 
@@ -341,17 +371,20 @@ exports.onSpotApproved = functions
 // ────────────────────────────────────────────────────────────
 // 9. Егерь ИИ — Claude AI агент (Anthropic claude-haiku)
 // ────────────────────────────────────────────────────────────
-exports.askEger = functions
-  .region("europe-west3")
-  .https.onCall(async (data, context) => {
-    const { messages = [], weather, userCatches = [] } = data;
+exports.askEger = onCall(
+  { region: "europe-west3", timeoutSeconds: 60, memory: "256MiB", cors: true },
+  async (request) => {
+    const { messages = [], weather, userCatches = [], mode } = request.data;
 
-    // Rate limit: авторизованные 200/день по uid, гости 20/день по IP
-    const uid = context.auth?.uid;
-    const ip = (context.rawRequest?.headers?.["x-forwarded-for"] || context.rawRequest?.ip || "unknown")
+    // home_advice кешируется клиентом (sessionStorage), лимит не применяем
+    const isHomeAdvice = mode === "home_advice";
+
+    // Rate limit: авторизованные 30/день, гости 10/день
+    const uid = request.auth?.uid;
+    const ip = (request.rawRequest?.headers?.["x-forwarded-for"] || request.rawRequest?.ip || "unknown")
       .split(",")[0].trim().replace(/[.:]/g, "_");
     const limitKey = uid || `ip_${ip}`;
-    const dailyLimit = uid ? 200 : 20;
+    const dailyLimit = uid ? 30 : 10;
 
     const today = new Date().toISOString().split("T")[0];
     const usageRef = db.collection("ai_usage").doc(limitKey);
@@ -359,10 +392,10 @@ exports.askEger = functions
     const usageData = usageDoc.exists ? usageDoc.data() : {};
     const todayCount = usageData.date === today ? (usageData.count || 0) : 0;
 
-    if (todayCount >= dailyLimit) {
+    if (!isHomeAdvice && todayCount >= dailyLimit) {
       const msg = uid
-        ? "Лимит 200 сообщений в день исчерпан 🎣 Возвращайся завтра!"
-        : "Лимит 20 сообщений в день для гостей исчерпан 🎣 Войди в аккаунт — там 200 сообщений!";
+        ? `Лимит ${dailyLimit} сообщений в день исчерпан 🎣 Возвращайся завтра!`
+        : `Лимит ${dailyLimit} сообщений в день для гостей исчерпан 🎣 Войди в аккаунт — там больше!`;
       return { limited: true, message: msg };
     }
 
@@ -410,13 +443,13 @@ ${catchesCtx}
         anthropicMessages[anthropicMessages.length - 1].content += "\n" + m.content;
       }
     }
-    if (anthropicMessages.length === 0) throw new functions.https.HttpsError("invalid-argument", "No messages");
+    if (anthropicMessages.length === 0) throw new HttpsError("invalid-argument", "No messages");
 
     // API key: сначала env (Functions v2), потом config (Functions v1)
     const apiKey = process.env.ANTHROPIC_API_KEY || functions.config().anthropic?.api_key;
     if (!apiKey) {
       functions.logger.error("ANTHROPIC_API_KEY not configured");
-      throw new functions.https.HttpsError("internal", "AI не настроен — обратитесь к администратору");
+      throw new HttpsError("internal", "AI не настроен — обратитесь к администратору");
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -437,16 +470,16 @@ ${catchesCtx}
     if (!response.ok) {
       const errText = await response.text();
       functions.logger.error("Anthropic API error:", response.status, errText);
-      throw new functions.https.HttpsError("internal", "Сервис ИИ временно недоступен");
+      throw new HttpsError("internal", "Сервис ИИ временно недоступен");
     }
 
     const result = await response.json();
     const replyText = result.content?.[0]?.text || "Не смог ответить, попробуй ещё раз 🎣";
 
-    // Обновляем счётчик использования
-    await usageRef.set({ date: today, count: todayCount + 1 }, { merge: true });
+    // Обновляем счётчик (home_advice не считается)
+    if (!isHomeAdvice) await usageRef.set({ date: today, count: todayCount + 1 }, { merge: true });
 
-    functions.logger.info(`askEger uid=${context.auth?.uid || "anon"} in=${result.usage?.input_tokens} out=${result.usage?.output_tokens}`);
+    functions.logger.info(`askEger uid=${request.auth?.uid || "anon"} in=${result.usage?.input_tokens} out=${result.usage?.output_tokens}`);
 
     // Сохраняем Q&A в базу знаний для обучения встроенного бота (fire-and-forget)
     const lastUserMsg = anthropicMessages[anthropicMessages.length - 1]?.content || "";

@@ -11,11 +11,8 @@ firebase.initializeApp({
 });
 
 const messaging = firebase.messaging();
-const CACHE = 'eger-v5';
-const SHELL = [
-  '/eger-ai/',
-  '/eger-ai/index.html',
-];
+const CACHE = 'eger-v6';
+const SHELL = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -23,18 +20,16 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  // Cache-first for same-origin navigation, stale-while-revalidate for assets
   if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match('/eger-ai/index.html'))
-    );
+    e.respondWith(fetch(e.request).catch(() => caches.match('/index.html')));
     return;
   }
   if (url.hostname === self.location.hostname && e.request.method === 'GET') {
@@ -53,11 +48,11 @@ self.addEventListener('fetch', e => {
 messaging.onBackgroundMessage(payload => {
   const title = payload.notification?.title || '🎣 Егерь ИИ';
   const body  = payload.notification?.body  || '';
-  const url   = payload.data?.url || 'https://turbenbaher-del.github.io/eger-ai/';
+  const url   = payload.data?.url || 'https://eger-ai.app/';
   self.registration.showNotification(title, {
     body,
-    icon: 'https://turbenbaher-del.github.io/eger-ai/favicon.ico',
-    badge: 'https://turbenbaher-del.github.io/eger-ai/favicon.ico',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-48.png',
     tag: 'eger-news',
     renotify: true,
     data: { url }
@@ -66,10 +61,10 @@ messaging.onBackgroundMessage(payload => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = event.notification.data?.url || 'https://turbenbaher-del.github.io/eger-ai/';
+  const url = event.notification.data?.url || 'https://eger-ai.app/';
   event.waitUntil(
-    clients.matchAll({type:'window',includeUncontrolled:true}).then(list => {
-      for (const c of list) { if (c.url===url && 'focus' in c) return c.focus(); }
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const c of list) { if (c.url === url && 'focus' in c) return c.focus(); }
       return clients.openWindow(url);
     })
   );

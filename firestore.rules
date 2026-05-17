@@ -4,6 +4,9 @@ service cloud.firestore {
 
     function isAuth() { return request.auth != null; }
     function isOwner(uid) { return request.auth.uid == uid; }
+    function validString(field, maxLen) {
+      return field is string && field.size() <= maxLen;
+    }
 
     // Catches: только владелец читает и пишет свои записи
     match /catches/{userId}/records/{recordId} {
@@ -13,7 +16,10 @@ service cloud.firestore {
     // Публичные записи (лента сообщества)
     match /reports/{recordId} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && (!('text' in request.resource.data) || validString(request.resource.data.text, 2000))
+        && (!('photoUrls' in request.resource.data) || (request.resource.data.photoUrls is list && request.resource.data.photoUrls.size() <= 4));
       allow update: if isAuth() && (
         resource.data.userId == request.auth.uid ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
@@ -30,7 +36,12 @@ service cloud.firestore {
     // Профиль пользователя
     match /users/{userId} {
       allow read: if isAuth();
-      allow write: if isAuth() && isOwner(userId);
+      allow create: if isAuth() && isOwner(userId);
+      allow update: if isAuth() && isOwner(userId)
+        && (!('displayName' in request.resource.data) || validString(request.resource.data.displayName, 50))
+        && (!('photoURL' in request.resource.data) || validString(request.resource.data.photoURL, 500))
+        && (!('bio' in request.resource.data) || validString(request.resource.data.bio, 300));
+      allow delete: if false;
     }
 
     // Рейтинг: только чтение для авторизованных, запись — Cloud Functions
@@ -55,7 +66,11 @@ service cloud.firestore {
       allow create: if isAuth() && request.resource.data.uid == request.auth.uid;
       allow update: if isAuth() && (
         resource.data.uid == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+          && request.resource.data.reactions is map
+          && request.resource.data.reactions.size() <= 20
+        )
       );
       allow delete: if isAuth() && resource.data.uid == request.auth.uid;
     }
@@ -66,10 +81,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // FCM токены: пользователь пишет свой токен
+    // FCM токены: пользователь пишет только свой токен
     match /fcm_tokens/{tokenId} {
       allow read: if false;
-      allow write: if isAuth();
+      allow create: if isAuth() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuth()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAuth() && resource.data.uid == request.auth.uid;
     }
 
     // Push лог: только Cloud Functions
@@ -86,8 +105,11 @@ service cloud.firestore {
     // Личные сообщения (DM)
     match /dms/{dmId} {
       allow read: if isAuth() && request.auth.uid in resource.data.participants;
-      allow create: if isAuth() && request.auth.uid in request.resource.data.participants;
-      allow update: if isAuth() && request.auth.uid in resource.data.participants;
+      allow create: if isAuth() && request.auth.uid in request.resource.data.participants
+        && request.resource.data.participants.size() == 2;
+      allow update: if isAuth() && request.auth.uid in resource.data.participants
+        && request.resource.data.participants == resource.data.participants;
+      allow delete: if false;
     }
     match /dms/{dmId}/messages/{msgId} {
       allow read: if isAuth() && request.auth.uid in get(/databases/$(database)/documents/dms/$(dmId)).data.participants;
@@ -98,6 +120,12 @@ service cloud.firestore {
     // Счётчик использования ИИ — только Cloud Functions
     match /ai_usage/{userId} {
       allow read, write: if false;
+    }
+
+    // Отчёты об ошибках — клиент пишет, читают только Cloud Functions
+    match /crash_reports/{docId} {
+      allow read: if false;
+      allow create: if true; // пишем даже без авторизации (crash может быть до auth)
     }
 
     // База знаний бота (накопленные ответы Claude) — читают клиенты, пишут только Cloud Functions
