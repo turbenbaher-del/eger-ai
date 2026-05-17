@@ -72,7 +72,7 @@ export default function ProfileScreen({ user, onLogin, onNav }) {
       if (!messaging) return;
       const token = await getToken(messaging, {vapidKey:VAPID_KEY, serviceWorkerRegistration:reg});
       if (token) {
-        await setDoc(doc(db, "fcm_tokens", token), {createdAt:serverTimestamp(), ua:navigator.userAgent.slice(0,100)});
+        await setDoc(doc(db, "fcm_tokens", token), {uid:user.uid, createdAt:serverTimestamp(), ua:navigator.userAgent.slice(0,100)});
         localStorage.setItem("fcm_token", token); setNotifOn(true);
       }
     } catch(e) { console.log("FCM error:", e); }

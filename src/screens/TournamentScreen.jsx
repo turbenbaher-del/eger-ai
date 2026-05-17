@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { C, glass } from '../tokens.js';
 import { db, logEvent } from '../firebase.js';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, orderBy, limit, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, orderBy, limit, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function TournamentScreen({ onBack, user }) {
   const [tournaments, setTournaments] = useState([]);

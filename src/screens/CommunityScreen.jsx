@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { C, glass } from '../tokens.js';
 import { db, storage } from '../firebase.js';
 import { collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
-         onSnapshot, query, orderBy, limit, startAfter, serverTimestamp, increment, deleteField, where } from 'firebase/firestore';
+         onSnapshot, query, orderBy, limit, startAfter, serverTimestamp, increment, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { BADGE_DEFS } from '../data/fishing.jsx';
 import { fmtDate, genUsername, REACTIONS_LIST } from '../lib/utils.js';
@@ -195,7 +195,7 @@ function ClassifiedsTab({ user, onLogin }) {
               <button onClick={()=>handleDelete(item.id,item.userId)} style={{background:"none",border:"none",cursor:"pointer",color:C.dimmer,fontSize:16,flexShrink:0,lineHeight:1}}>🗑</button>
             )}
           </div>
-          <a href={item.contact.startsWith("http")||item.contact.startsWith("+")||item.contact.startsWith("@")?`https://t.me/${item.contact.replace(/^@/,"")}`:`tel:${item.contact}`}
+          <a href={item.contact.startsWith("http")?item.contact:item.contact.startsWith("@")?`https://t.me/${item.contact.slice(1)}`:item.contact.startsWith("+")||/^\d/.test(item.contact)?`tel:${item.contact}`:`https://t.me/${item.contact}`}
             style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:10,background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",color:C.cyan,fontSize:12,fontWeight:700,textDecoration:"none"}}>
             📞 {item.contact}
           </a>
