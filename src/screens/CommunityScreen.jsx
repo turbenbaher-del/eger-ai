@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { C } from '../tokens.js';
+import { C, glass } from '../tokens.js';
 import { db, storage } from '../firebase.js';
 import { collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc,
-         onSnapshot, query, orderBy, limit, startAfter, serverTimestamp, increment, deleteField } from 'firebase/firestore';
+         onSnapshot, query, orderBy, limit, startAfter, serverTimestamp, increment, deleteField, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { BADGE_DEFS } from '../data/fishing.jsx';
 import { fmtDate, genUsername, REACTIONS_LIST } from '../lib/utils.js';
@@ -98,8 +98,116 @@ function DMScreen({ user, otherUser, onClose }) {
   );
 }
 
+/* ── Classifieds (Барахолка) ── */
+const CLASSIFIED_CATS = ["Снасти","Лодки","Места","Другое"];
+
+function ClassifiedsTab({ user, onLogin }) {
+  const [items, setItems] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [contact, setContact] = useState("");
+  const [cat, setCat] = useState("Снасти");
+  const [saving, setSaving] = useState(false);
+  const [catFilter, setCatFilter] = useState("");
+
+  useEffect(()=>{
+    const unsub=onSnapshot(query(collection(db,"classifieds"),orderBy("createdAt","desc"),limit(50)),
+      snap=>setItems(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return unsub;
+  },[]);
+
+  const filtered = catFilter ? items.filter(i=>i.category===catFilter) : items;
+
+  const handlePost = async () => {
+    if (!user) { onLogin(); return; }
+    if (!title.trim()||!contact.trim()) return;
+    setSaving(true);
+    try {
+      const expires = new Date(Date.now() + 30*24*60*60*1000);
+      await addDoc(collection(db,"classifieds"),{
+        title:title.trim(), price:price.trim(), contact:contact.trim(),
+        category:cat, userId:user.uid, displayName:user.displayName||"Рыбак",
+        createdAt:serverTimestamp(), expiresAt:expires,
+      });
+      setTitle(""); setPrice(""); setContact(""); setShowForm(false);
+    } catch(e){}
+    setSaving(false);
+  };
+
+  const handleDelete = async (id, uid) => {
+    if (!user || user.uid !== uid) return;
+    if (!window.confirm("Удалить объявление?")) return;
+    await deleteDoc(doc(db,"classifieds",id)).catch(()=>{});
+  };
+
+  return (
+    <div style={{flex:1,overflowY:"auto",padding:"10px 12px 80px"}}>
+      <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+        <button onClick={()=>setCatFilter("")} style={{padding:"4px 12px",borderRadius:12,background:!catFilter?C.accentDim:C.surface,border:`1px solid ${!catFilter?C.accent:C.border}`,color:!catFilter?C.accent:C.muted,fontSize:11,cursor:"pointer",fontWeight:!catFilter?700:400}}>Все</button>
+        {CLASSIFIED_CATS.map(c=>(
+          <button key={c} onClick={()=>setCatFilter(catFilter===c?"":c)} style={{padding:"4px 12px",borderRadius:12,background:catFilter===c?C.accentDim:C.surface,border:`1px solid ${catFilter===c?C.accent:C.border}`,color:catFilter===c?C.accent:C.muted,fontSize:11,cursor:"pointer",fontWeight:catFilter===c?700:400}}>{c}</button>
+        ))}
+      </div>
+
+      <button onClick={()=>{if(!user){onLogin();return;}setShowForm(o=>!o);}} style={{width:"100%",padding:"10px",borderRadius:12,background:showForm?C.surface:C.accentDim,border:`1px solid ${C.accent}`,color:C.accent,fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:12}}>
+        {showForm?"✕ Закрыть":"+ Разместить объявление"}
+      </button>
+
+      {showForm&&(
+        <div style={{...glass(),padding:"14px",marginBottom:12,borderRadius:16}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>Новое объявление</div>
+          <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+            {CLASSIFIED_CATS.map(c=>(
+              <button key={c} onClick={()=>setCat(c)} style={{padding:"4px 10px",borderRadius:10,background:cat===c?C.accentDim:C.surface,border:`1px solid ${cat===c?C.accent:C.border}`,color:cat===c?C.accent:C.muted,fontSize:11,cursor:"pointer",fontWeight:cat===c?700:400}}>{c}</button>
+            ))}
+          </div>
+          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Заголовок *" style={{width:"100%",padding:"9px 12px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:13,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
+          <input value={price} onChange={e=>setPrice(e.target.value)} placeholder="Цена (или 'договорная')" style={{width:"100%",padding:"9px 12px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:13,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
+          <input value={contact} onChange={e=>setContact(e.target.value)} placeholder="Telegram / WhatsApp / телефон *" style={{width:"100%",padding:"9px 12px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:13,outline:"none",marginBottom:10,boxSizing:"border-box"}}/>
+          <div style={{fontSize:10,color:C.dimmer,marginBottom:10}}>Объявление публикуется на 30 дней и затем автоматически удаляется</div>
+          <button onClick={handlePost} disabled={saving||!title.trim()||!contact.trim()} style={{width:"100%",padding:"11px",borderRadius:12,border:"none",background:title.trim()&&contact.trim()?`linear-gradient(135deg,#1a8a50,${C.accent})`:"rgba(46,204,113,.2)",color:title.trim()&&contact.trim()?"#07111e":"rgba(232,244,240,.3)",fontSize:14,fontWeight:800,cursor:"pointer"}}>
+            {saving?"Публикуем...":"Опубликовать"}
+          </button>
+        </div>
+      )}
+
+      {filtered.length===0&&(
+        <div style={{textAlign:"center",padding:"40px 0",color:C.dimmer}}>
+          <div style={{fontSize:44,marginBottom:12}}>🛒</div>
+          <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Объявлений пока нет</div>
+          <div style={{fontSize:12}}>Разместите первое!</div>
+        </div>
+      )}
+
+      {filtered.map(item=>(
+        <div key={item.id} style={{...glass(),padding:"12px",marginBottom:8,borderRadius:14}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:6}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                <span style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:8,background:C.accentDim,color:C.accent,border:`1px solid ${C.borderHi}`}}>{item.category}</span>
+                {item.price&&<span style={{fontSize:11,fontWeight:700,color:C.gold}}>{item.price} ₽</span>}
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:C.text}}>{item.title}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>от {item.displayName||"Рыбак"}</div>
+            </div>
+            {user&&user.uid===item.userId&&(
+              <button onClick={()=>handleDelete(item.id,item.userId)} style={{background:"none",border:"none",cursor:"pointer",color:C.dimmer,fontSize:16,flexShrink:0,lineHeight:1}}>🗑</button>
+            )}
+          </div>
+          <a href={item.contact.startsWith("http")||item.contact.startsWith("+")||item.contact.startsWith("@")?`https://t.me/${item.contact.replace(/^@/,"")}`:`tel:${item.contact}`}
+            style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:10,background:"rgba(34,211,238,.1)",border:"1px solid rgba(34,211,238,.3)",color:C.cyan,fontSize:12,fontWeight:700,textDecoration:"none"}}>
+            📞 {item.contact}
+          </a>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── CommunityScreen ── */
 export default function CommunityScreen({ user, onLogin }) {
+  const [tab, setTab] = useState("chat");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [attachOpen, setAttachOpen] = useState(false);
@@ -451,17 +559,17 @@ export default function CommunityScreen({ user, onLogin }) {
     <div style={{display:"flex",flexDirection:"column",height:"100%",position:"relative"}}>
       {dmTarget&&user&&<DMScreen user={user} otherUser={dmTarget} onClose={()=>setDmTarget(null)}/>}
       <div style={{padding:"10px 16px 8px",borderBottom:`1px solid ${C.border}`}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:36,height:36,borderRadius:"50%",background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center"}}><MessageCircle size={17} color="#fff"/></div>
-            <div><div style={{fontSize:13,fontWeight:700,color:C.text}}>Чат рыбаков</div><div style={{fontSize:10,color:C.accent}}>Ростовская обл.</div></div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <div style={{display:"flex",gap:4}}>
+            <button onClick={()=>setTab("chat")} style={{padding:"6px 16px",borderRadius:12,background:tab==="chat"?C.accentDim:C.surface,border:`1px solid ${tab==="chat"?C.accent:C.border}`,color:tab==="chat"?C.accent:C.muted,fontSize:13,fontWeight:700,cursor:"pointer"}}>💬 Чат</button>
+            <button onClick={()=>setTab("classified")} style={{padding:"6px 16px",borderRadius:12,background:tab==="classified"?C.accentDim:C.surface,border:`1px solid ${tab==="classified"?C.accent:C.border}`,color:tab==="classified"?C.accent:C.muted,fontSize:13,fontWeight:700,cursor:"pointer"}}>🛒 Барахолка</button>
           </div>
-          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          {tab==="chat"&&<div style={{display:"flex",gap:6,alignItems:"center"}}>
             <button onClick={()=>{setSearchOpen(o=>!o);setSearchInput("");setSearchQuery("");}} style={{width:34,height:34,borderRadius:"50%",border:`1px solid ${searchOpen?C.borderHi:C.border}`,background:searchOpen?C.accentDim:C.surface,color:searchOpen?C.accent:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,transition:"all .2s"}}>🔍</button>
             {!user&&<button onClick={onLogin} style={{padding:"6px 12px",borderRadius:12,border:`1px solid ${C.borderHi}`,background:C.accentDim,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer"}}>Войти</button>}
-          </div>
+          </div>}
         </div>
-        {searchOpen&&(
+        {tab==="chat"&&searchOpen&&(
           <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",animation:"fadeIn .2s ease"}}>
             <input autoFocus value={searchInput} onChange={e=>setSearchInput(e.target.value)}
               placeholder="Поиск по сообщениям..."
@@ -472,7 +580,8 @@ export default function CommunityScreen({ user, onLogin }) {
         )}
       </div>
 
-      <div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px"}} onClick={()=>setAttachOpen(false)}>
+      {tab==="classified"&&<ClassifiedsTab user={user} onLogin={onLogin}/>}
+      {tab==="chat"&&<div style={{flex:1,overflowY:"auto",padding:"12px 12px 6px"}} onClick={()=>setAttachOpen(false)}>
         {!noMoreOlder&&messages.length>=50&&(
           <div style={{textAlign:"center",padding:"8px 0 12px"}}>
             <button onClick={loadOlderMsgs} disabled={loadingOlder} style={{padding:"7px 18px",borderRadius:16,border:`1px solid ${C.border}`,background:C.surface,color:C.muted,fontSize:12,cursor:"pointer"}}>
@@ -581,9 +690,9 @@ export default function CommunityScreen({ user, onLogin }) {
           );
         })}
         <div ref={bottomRef}/>
-      </div>
+      </div>}
 
-      {/* Запись голоса */}
+      {tab==="chat"&&<>{/* Запись голоса */}
       {voiceRec&&<div style={{padding:"10px 14px",background:"rgba(239,68,68,.12)",borderTop:`1px solid #ef444433`,display:"flex",alignItems:"center",gap:12}}>
         <div style={{width:10,height:10,borderRadius:"50%",background:"#ef4444",animation:"pulseGlow .8s ease infinite"}}/>
         <span style={{color:"#ef4444",fontSize:14,fontWeight:700,flex:1}}>🎤 Запись {fmt(voiceSec)}</span>
@@ -704,7 +813,7 @@ export default function CommunityScreen({ user, onLogin }) {
         </div>}
         {vidUploading&&<div style={{color:C.accent,fontSize:14,fontWeight:700}}>Загрузка...</div>}
         <div style={{color:C.muted,fontSize:12,marginTop:8}}>{!vidPreview&&!vidRec?"Нажми для начала записи":vidRec?"Нажми квадрат для остановки":""}</div>
-      </div>}
+      </div>}</>}
     </div>
   );
 }

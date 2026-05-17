@@ -7,6 +7,7 @@ import { haversine } from '../lib/utils.js';
 import { ymapsLL } from '../lib/utils.js';
 import { SPOT_LIST } from '../data/spots.js';
 import { FISHING_BASES, SHOPS } from '../data/fishing.jsx';
+import ARView from '../components/ARView.jsx';
 
 function YandexMapFrame({ src, iframeKey, fallbackUrl }) {
   const [loaded, setLoaded] = useState(false);
@@ -104,6 +105,7 @@ function SpotsScreen({ userLat, userLon, user }) {
   const [filter, setFilter] = useState("");
   const [fishFilter, setFishFilter] = useState("");
   const [showSuggest, setShowSuggest] = useState(false);
+  const [showAR, setShowAR] = useState(false);
   useEffect(()=>{ logEvent("map_opened"); },[]);
 
   const sorted = useMemo(()=>{
@@ -134,6 +136,7 @@ function SpotsScreen({ userLat, userLon, user }) {
 
   return (
     <div style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {showAR&&userLat&&<ARView spots={SPOT_LIST} userLat={userLat} userLon={userLon} onClose={()=>setShowAR(false)}/>}
       {showSuggest&&<SuggestSpotForm user={user} userLat={userLat} userLon={userLon} onClose={()=>setShowSuggest(false)}/>}
 
       <div style={{flex:"0 0 44%",position:"relative",background:"#0a192f"}}>
@@ -166,6 +169,9 @@ function SpotsScreen({ userLat, userLon, user }) {
           <button onClick={()=>setShowSuggest(true)} style={{flexShrink:0,padding:"7px 12px",borderRadius:12,background:C.accentDim,border:`1px solid ${C.accent}`,color:C.accent,fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
             + Точку
           </button>
+          {userLat&&<button onClick={()=>setShowAR(true)} style={{flexShrink:0,padding:"7px 10px",borderRadius:12,background:"rgba(139,92,246,.15)",border:"1px solid rgba(139,92,246,.4)",color:"#a78bfa",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+            AR
+          </button>}
         </div>
         <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:4}}>
           <button onClick={()=>setFishFilter("")} style={{flexShrink:0,padding:"3px 10px",borderRadius:12,background:!fishFilter?C.accentDim:C.surface,border:`1px solid ${!fishFilter?C.accent:C.border}`,color:!fishFilter?C.accent:C.muted,fontSize:11,cursor:"pointer"}}>Все</button>

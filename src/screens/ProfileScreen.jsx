@@ -115,7 +115,22 @@ export default function ProfileScreen({ user, onLogin, onNav }) {
         const tod=Array(24).fill(0);
         recs.forEach(r=>{const d=r.createdAt?.toDate?.();if(d) tod[d.getHours()]++;});
         const maxTod=Math.max(...tod,1);
-        setCatchStats({total,totalW,best,favGear,uniqueDays,monthly,top3locs,top5species,maxSpecies,tod,maxTod});
+        // Best single day
+        const dayCounts={};
+        recs.forEach(r=>{const d=r.createdAt?.toDate?.();if(d){const k=d.toDateString();dayCounts[k]=(dayCounts[k]||0)+1;}});
+        const bestDayEntry=Object.entries(dayCounts).sort((a,b)=>b[1]-a[1])[0];
+        const bestDay=bestDayEntry?{date:bestDayEntry[0],count:bestDayEntry[1]}:null;
+        // Longest streak
+        const sortedDays=[...new Set(recs.map(r=>{const d=r.createdAt?.toDate?.();return d?d.toDateString():null;}).filter(Boolean))]
+          .map(s=>new Date(s).getTime()).sort((a,b)=>a-b);
+        let streak=0,curStreak=0,prevDay=null;
+        for(const t of sortedDays){
+          if(prevDay&&t-prevDay<=86400000*1.5) curStreak++;
+          else curStreak=1;
+          if(curStreak>streak) streak=curStreak;
+          prevDay=t;
+        }
+        setCatchStats({total,totalW,best,favGear,uniqueDays,monthly,top3locs,top5species,maxSpecies,tod,maxTod,bestDay,streak});
         setStatsLoading(false);
       }).catch(()=>setStatsLoading(false));
     getDocs(collection(db, "users", user.uid, "badges"))
@@ -249,6 +264,8 @@ export default function ProfileScreen({ user, onLogin, onNav }) {
               {bm.count>0&&<div style={{fontSize:13,color:C.text}}>📅 Лучший месяц: <span style={{color:C.accent,fontWeight:700}}>{bm.month} {bm.year}</span> — {bm.count} рыбалок</div>}
               <div style={{fontSize:13,color:C.text}}>⚖️ Средний вес: <span style={{color:C.accent,fontWeight:700}}>{avgW} кг</span></div>
               {catchStats.favGear&&<div style={{fontSize:13,color:C.text}}>🎣 Снасть #1: <span style={{color:C.accent,fontWeight:700}}>{catchStats.favGear}</span></div>}
+              {catchStats.bestDay&&catchStats.bestDay.count>1&&<div style={{fontSize:13,color:C.text}}>🏆 Лучший день: <span style={{color:C.accent,fontWeight:700}}>{catchStats.bestDay.count} уловов</span> — {new Date(catchStats.bestDay.date).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}</div>}
+              {catchStats.streak>1&&<div style={{fontSize:13,color:C.text}}>🔥 Рекорд серии: <span style={{color:C.accent,fontWeight:700}}>{catchStats.streak} дней подряд</span></div>}
             </div>
           </div>
         );

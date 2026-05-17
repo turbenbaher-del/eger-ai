@@ -979,3 +979,143 @@ exports.triggerBots = functions
     const actions = await runBotsOnce();
     return { actions };
   });
+
+
+// ────────────────────────────────────────────────────────────
+// 13. Определение вида рыбы через Claude Vision (F1)
+// ────────────────────────────────────────────────────────────
+exports.identifyFish = onCall(
+  { region: "europe-west3", timeoutSeconds: 60, memory: "512MiB", cors: true },
+  async (request) => {
+    const { imageBase64 } = request.data;
+    if (!imageBase64 || typeof imageBase64 !== "string") {
+      throw new HttpsError("invalid-argument", "imageBase64 required");
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY || functions.config().anthropic?.api_key;
+    if (!apiKey) throw new HttpsError("internal", "AI не настроен");
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 200,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/jpeg", data: imageBase64.slice(0, 1500000) }
+            },
+            {
+              type: "text",
+              text: "Определи вид рыбы на фото. Ответь строго в формате JSON (без markdown): {\"fish\": \"название рыбы на русском\", \"confidence\": число от 1 до 100, \"weight_estimate\": \"примерный вес например 0.5-1.5 кг\", \"tip\": \"краткий совет по ловле в одно предложение\"}. Если рыбы нет — {\"fish\": null, \"confidence\": 0}."
+            }
+          ]
+        }]
+      }),
+    });
+
+    if (!response.ok) {
+      functions.logger.error("identifyFish Anthropic error:", response.status);
+      throw new HttpsError("internal", "Сервис ИИ временно недоступен");
+    }
+
+    const result = await response.json();
+    const text = result.content?.[0]?.text || "";
+    functions.logger.info(`identifyFish: ${text.slice(0, 100)}`);
+
+    try {
+      const jsonStr = text.match(/\{[\s\S]*\}/)?.[0] || text;
+      const parsed = JSON.parse(jsonStr);
+      return {
+        fish: parsed.fish || null,
+        confidence: Math.max(0, Math.min(100, parseInt(parsed.confidence) || 0)),
+        weight_estimate: parsed.weight_estimate || null,
+        tip: parsed.tip || null,
+      };
+    } catch(e) {
+      return { fish: text.trim().slice(0, 50) || null, confidence: 60 };
+    }
+  }
+);
+
+
+// ────────────────────────────────────────────────────────────
+// 14. Push при изменении клёва (давление ±3мм рт.ст.) (F3)
+// ────────────────────────────────────────────────────────────
+exports.pushBiteChange = functions
+  .region("europe-west3")
+  .pubsub.schedule("0 * * * *")
+  .timeZone("Europe/Moscow")
+  .onRun(async () => {
+    // Получаем текущее давление через Open-Meteo
+    const lat = 47.27, lon = 39.87;
+    let pressure;
+    try {
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=surface_pressure&timezone=Europe%2FMoscow`, { signal: AbortSignal.timeout(8000) });
+      const data = await res.json();
+      pressure = data.current?.surface_pressure;
+      if (!pressure) return null;
+      pressure = Math.round(pressure * 0.750064); // гПа → мм рт.ст.
+    } catch(e) {
+      functions.logger.warn("pushBiteChange: weather fetch failed", e.message);
+      return null;
+    }
+
+    // Сравниваем с прошлым значением
+    const metaRef = db.collection("_meta").doc("pressure_cache");
+    const meta = await metaRef.get();
+    const prev = meta.exists ? meta.data().pressure : null;
+
+    await metaRef.set({ pressure, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+
+    if (prev === null) return null;
+    const delta = Math.abs(pressure - prev);
+    if (delta < 3) return null;
+
+    const rising = pressure > prev;
+    const title = rising ? "⬆ Давление растёт — карась и лещ активны!" : "⬇ Давление падает — хищник оживляется!";
+    const body = rising
+      ? `Давление: ${prev} → ${pressure} мм рт.ст. Хороший момент для мирной рыбы.`
+      : `Давление: ${prev} → ${pressure} мм рт.ст. Щука и судак выходят на охоту.`;
+
+    const tokensSnap = await db.collection("fcm_tokens").get();
+    const tokens = tokensSnap.docs.map(d => d.id).filter(Boolean);
+    if (tokens.length === 0) return null;
+
+    const msg = {
+      notification: { title, body },
+      data: { url: "https://eger-ai.app/", type: "bite_change" },
+      tokens: tokens.slice(0, 500),
+    };
+    const r = await admin.messaging().sendEachForMulticast(msg);
+    functions.logger.info(`pushBiteChange delta=${delta}мм, sent=${r.successCount}/${tokens.length}`);
+    return null;
+  });
+
+
+// ────────────────────────────────────────────────────────────
+// 15. Автоудаление истёкших объявлений барахолки (F7)
+// ────────────────────────────────────────────────────────────
+exports.deleteExpiredClassifieds = functions
+  .region("europe-west3")
+  .pubsub.schedule("0 3 * * *")
+  .timeZone("Europe/Moscow")
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const snap = await db.collection("classifieds")
+      .where("expiresAt", "<=", now)
+      .get();
+    if (snap.empty) return null;
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    functions.logger.info(`deleteExpiredClassifieds: removed ${snap.size} items`);
+    return null;
+  });

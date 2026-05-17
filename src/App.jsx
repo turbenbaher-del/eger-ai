@@ -5,6 +5,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { setUserGeo } from './data/fishing.jsx';
 import { fetchWeather } from './lib/weather.js';
+import { dequeueAll, clearItem } from './lib/offlineQueue.js';
 import { WaveIcon } from './components/ui.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { AuthModal } from './components/AuthModal.jsx';
@@ -96,11 +97,27 @@ export default function App() {
   useEffect(()=>{ const u=onAuthStateChanged(auth, u=>{setUser(u);setAuthLoading(false);}); return u; },[]);
 
   useEffect(()=>{
-    const on=()=>{ setIsOffline(false); localStorage.setItem("eger_offline_pending","0"); setOfflinePending(0); };
+    const on=async()=>{
+      setIsOffline(false);
+      try {
+        const queue = await dequeueAll();
+        if (queue.length > 0 && user) {
+          const { collection: col, doc, setDoc, serverTimestamp: st } = await import('firebase/firestore');
+          for (const item of queue.sort((a,b)=>a.ts-b.ts)) {
+            if (item.type === "add" && item.payload) {
+              const recRef = doc(col(db, "catches", user.uid, "records"), item.payload.id || undefined);
+              await setDoc(recRef, {...item.payload, createdAt: st()}).catch(()=>{});
+            }
+            await clearItem(item.id).catch(()=>{});
+          }
+        }
+      } catch(e) {}
+      localStorage.setItem("eger_offline_pending","0"); setOfflinePending(0);
+    };
     const off=()=>setIsOffline(true);
     window.addEventListener("online",on); window.addEventListener("offline",off);
     return()=>{ window.removeEventListener("online",on); window.removeEventListener("offline",off); };
-  },[]);
+  },[user]);
 
   useEffect(()=>{ logEvent("app_open",{source:"direct"}); },[]);
 

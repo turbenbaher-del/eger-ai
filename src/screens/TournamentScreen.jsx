@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { C, glass } from '../tokens.js';
 import { db, logEvent } from '../firebase.js';
-import { collection, doc, getDoc, onSnapshot, query, orderBy, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, orderBy, limit, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function TournamentScreen({ onBack, user }) {
   const [tournaments, setTournaments] = useState([]);
@@ -54,6 +54,30 @@ export default function TournamentScreen({ onBack, user }) {
     return <span>{m}:{String(s%60).padStart(2,"0")}</span>;
   }
 
+  function LiveLeaderboard({tournamentId}){
+    const [rows,setRows]=useState([]);
+    useEffect(()=>{
+      const unsub=onSnapshot(
+        query(collection(db,"tournaments",tournamentId,"participants"),orderBy("score","desc"),limit(20)),
+        snap=>setRows(snap.docs.map(d=>({...d.data(),uid:d.id})))
+      );
+      return unsub;
+    },[tournamentId]);
+    if(rows.length===0) return <div style={{fontSize:11,color:C.dimmer,textAlign:"center",padding:"8px 0"}}>Пока нет участников с баллами</div>;
+    return(
+      <div style={{marginTop:10}}>
+        <div style={{fontSize:11,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:6}}>LIVE ТАБЛИЦА</div>
+        {rows.map((r,i)=>(
+          <div key={r.uid} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:10,background:i===0?"rgba(245,158,11,.08)":"rgba(255,255,255,.03)",border:`1px solid ${i===0?"rgba(245,158,11,.3)":C.border}`,marginBottom:4}}>
+            <span style={{fontSize:14,width:24,textAlign:"center",flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`#${i+1}`}</span>
+            <span style={{flex:1,fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name||"Рыбак"}</span>
+            <span style={{fontSize:12,fontWeight:700,color:i===0?C.gold:C.accent,flexShrink:0}}>{r.score||0} оч.</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function TCard({t,status}){
     const start=t.startDate?.toDate?.()??new Date();
     const end=t.endDate?.toDate?.()??new Date();
@@ -77,6 +101,7 @@ export default function TournamentScreen({ onBack, user }) {
             ? <div style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:12,background:"rgba(46,204,113,.12)",border:`1px solid ${C.accent}`,fontSize:12,fontWeight:700,color:C.accent}}>✓ Вы записаны</div>
             : <button onClick={()=>register(t.id)} disabled={isRegLoading} style={{padding:"7px 16px",borderRadius:12,background:`linear-gradient(135deg,#1a8a50,${C.accent})`,border:"none",color:"#07111e",fontSize:12,fontWeight:800,cursor:"pointer",opacity:isRegLoading?.6:1}}>{isRegLoading?"Записываем...":"Записаться →"}</button>
         )}
+        {status==="active"&&<LiveLeaderboard tournamentId={t.id}/>}
       </div>
     );
   }

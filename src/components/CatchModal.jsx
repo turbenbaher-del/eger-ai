@@ -1,8 +1,10 @@
 import { memo, useRef, useState, useMemo } from 'react';
 import { C, glass } from '../tokens.js';
 import { XIcon, Camera, MapPin } from '../icons/index.jsx';
-import { db, storage, logEvent } from '../firebase.js';
+import { db, storage, logEvent, functionsRegion } from '../firebase.js';
+import { httpsCallable } from 'firebase/functions';
 import { collection, doc, getDocs, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { enqueue } from '../lib/offlineQueue.js';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { FISH_TYPES, GEAR_TYPES, CATCH_METHODS, FISH_INFO, checkAndAwardBadges } from '../data/fishing.jsx';
 import { getNearestSpotName } from '../data/spots.js';
@@ -23,6 +25,9 @@ export default function CatchModal({ user, userLat, userLon, onClose, weather })
   const [saving, setSaving] = useState(false);
   const [savedRec, setSavedRec] = useState(null);
   const [aiSuggestion, setAiSuggestion] = useState(null);
+  const [aiVisionLoading, setAiVisionLoading] = useState(false);
+  const [aiVisionResult, setAiVisionResult] = useState(null);
+  const [savedOffline, setSavedOffline] = useState(false);
   const fileRef = useRef();
 
   const analyzePhoto = (canvas, w, h) => {
@@ -71,12 +76,31 @@ export default function CatchModal({ user, userLat, userLon, onClose, weather })
     reader.readAsDataURL(file);
   };
 
+  const identifyWithAI = async () => {
+    if (!photoBlob) return;
+    setAiVisionLoading(true);
+    setAiVisionResult(null);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise(resolve => {
+        reader.onload = e => resolve(e.target.result.split(",")[1]);
+        reader.readAsDataURL(photoBlob);
+      });
+      const fn = httpsCallable(functionsRegion, "identifyFish", {timeout: 30000});
+      const result = await fn({ imageBase64: base64 });
+      setAiVisionResult(result.data);
+    } catch(e) {
+      setAiVisionResult({ error: true, fish: null });
+    }
+    setAiVisionLoading(false);
+  };
+
   const handleSave = async () => {
     if (!fishType||!weightKg||isNaN(parseFloat(weightKg))||parseFloat(weightKg)<=0) return;
     setSaving(true);
     try {
       let uploadedUrl = null;
-      if (photoBlob) {
+      if (photoBlob && navigator.onLine) {
         const storageRef = ref(storage,`catches/${user.uid}/${Date.now()}.jpg`);
         await uploadBytes(storageRef,photoBlob,{contentType:"image/jpeg"});
         uploadedUrl = await getDownloadURL(storageRef);
@@ -96,6 +120,14 @@ export default function CatchModal({ user, userLat, userLon, onClose, weather })
         photoUrls:uploadedUrl?[uploadedUrl]:[], isPublic:false, source:"button",
         weather:weatherData,
       };
+      if (!navigator.onLine) {
+        await enqueue("add", record);
+        const cur = parseInt(localStorage.getItem("eger_offline_pending")||"0");
+        localStorage.setItem("eger_offline_pending", String(cur+1));
+        setSavedOffline(true);
+        setSavedRec(record); setSaving(false); setStep(3);
+        return;
+      }
       await setDoc(recRef, record);
       logEvent("catch_saved",{source:"button",has_photo:!!uploadedUrl,fish_type:fishType.id,weight_g:record.weightGrams,is_offline:!navigator.onLine});
       setSavedRec(record); setSaving(false); setStep(3);
@@ -144,7 +176,7 @@ export default function CatchModal({ user, userLat, userLon, onClose, weather })
           {step===2&&(
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               {photoUrl&&<img src={photoUrl} alt="" style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:16}}/>}
-              {aiSuggestion&&!fishType&&(
+              {aiSuggestion&&!fishType&&!aiVisionResult&&(
                 <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"rgba(46,204,113,.08)",border:`1px solid ${C.borderHi}`,borderRadius:12}}>
                   <div style={{fontSize:22}}>🤖</div>
                   <div style={{flex:1}}>
@@ -152,6 +184,38 @@ export default function CatchModal({ user, userLat, userLon, onClose, weather })
                     <div style={{fontSize:13,color:C.text,fontWeight:700}}>{aiSuggestion.name} <span style={{fontSize:10,color:C.muted,fontWeight:400}}>({aiSuggestion.conf}%)</span></div>
                   </div>
                   <button onClick={()=>{const f=FISH_TYPES.find(f=>f.id===aiSuggestion.id);if(f){setFishType(f);setFishSearch("");}}} style={{padding:"6px 12px",background:C.accentDim,border:`1px solid ${C.accent}`,borderRadius:10,color:C.accent,fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>Принять</button>
+                </div>
+              )}
+              {photoUrl&&!fishType&&(
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={identifyWithAI} disabled={aiVisionLoading}
+                    style={{flex:1,padding:"9px 12px",background:"rgba(34,211,238,.08)",border:`1px solid rgba(34,211,238,.3)`,borderRadius:12,color:aiVisionLoading?C.muted:C.cyan,fontSize:12,fontWeight:700,cursor:aiVisionLoading?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"all .2s"}}>
+                    {aiVisionLoading?<><div style={{width:14,height:14,borderRadius:"50%",border:`2px solid ${C.cyan}`,borderTopColor:"transparent",animation:"spin 1s linear infinite"}}/> Определяем...</>:"🔍 Определить через ИИ"}
+                  </button>
+                </div>
+              )}
+              {aiVisionResult&&!fishType&&(
+                <div style={{padding:"10px 12px",background:"rgba(34,211,238,.08)",border:`1px solid rgba(34,211,238,.3)`,borderRadius:12}}>
+                  {aiVisionResult.error ? (
+                    <div style={{fontSize:12,color:C.muted}}>Не удалось определить вид рыбы — выбери вручную</div>
+                  ) : (
+                    <>
+                      <div style={{fontSize:10,color:C.cyan,fontWeight:700,letterSpacing:.5,marginBottom:4}}>🔍 CLAUDE VISION ОПРЕДЕЛИЛ</div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:14,fontWeight:800,color:C.text}}>{aiVisionResult.fish}</div>
+                          {aiVisionResult.confidence&&<div style={{fontSize:10,color:C.muted}}>Уверенность: {aiVisionResult.confidence}%{aiVisionResult.weight_estimate?` · Вес: ~${aiVisionResult.weight_estimate}`:""}</div>}
+                          {aiVisionResult.tip&&<div style={{fontSize:11,color:C.dimmer,marginTop:2}}>{aiVisionResult.tip}</div>}
+                        </div>
+                        <button onClick={()=>{
+                          const name=aiVisionResult.fish||"";
+                          const f=FISH_TYPES.find(f=>f.name.toLowerCase()===name.toLowerCase())||FISH_TYPES.find(f=>name.toLowerCase().includes(f.name.toLowerCase()));
+                          if(f){setFishType(f);setFishSearch("");}
+                          else{setFishSearch(name);}
+                        }} style={{padding:"6px 12px",background:C.accentDim,border:`1px solid ${C.accent}`,borderRadius:10,color:C.accent,fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>Принять</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               <div>
@@ -219,7 +283,7 @@ export default function CatchModal({ user, userLat, userLon, onClose, weather })
                 <div style={{color:C.accent,fontWeight:800,fontSize:20,marginBottom:2}}>
                   {savedRec?.fishName} · {savedRec?(savedRec.weightGrams/1000).toFixed(1):"0"} кг
                 </div>
-                <div style={{color:C.muted,fontSize:12}}>сохранён в дневник</div>
+                <div style={{color:C.muted,fontSize:12}}>{savedOffline?"⏳ сохранён локально — синхронизируется при подключении":"сохранён в дневник"}</div>
               </div>
               <div style={{fontSize:11,color:C.dimmer,textAlign:"center"}}>Добавь детали — необязательно, улучшит ИИ-анализ</div>
               <div>

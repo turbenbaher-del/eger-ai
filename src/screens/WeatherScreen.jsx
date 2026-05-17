@@ -371,6 +371,45 @@ export default function WeatherScreen({ weather, weatherLoading, onRefresh }) {
           </div>
         </div>
       )}
+
+      {/* 30-day Lunar calendar */}
+      {(()=>{
+        const moonScore=(p)=>{
+          if(p<1.85||p>27.68) return 10;
+          if(p>=14.76&&p<16.61) return 9;
+          if(p<3.69||p>25.84) return 8;
+          if(p>=12.91&&p<18.46) return 7;
+          if(p<7.38||p>22.15) return 6;
+          return 5;
+        };
+        const scoreColor=s=>s>=9?"#2ecc71":s>=7?"#f59e0b":s>=6?"#f97316":"#ef4444";
+        const DAYS_SH=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+        return (
+          <div style={{...glass(),padding:"12px 14px",marginTop:10}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>🌙 Лунный календарь — 30 дней</div>
+            <div style={{display:"flex",flexDirection:"column",gap:3}}>
+              {Array.from({length:30},(_,i)=>{
+                const d=new Date(); d.setDate(d.getDate()+i);
+                const m=moonPhase(d);
+                const sc=moonScore(m.p);
+                const dateStr=d.toLocaleDateString("ru-RU",{day:"2-digit",month:"short"});
+                const dayStr=DAYS_SH[d.getDay()];
+                const isToday=i===0;
+                return (
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 8px",borderRadius:8,background:isToday?"rgba(46,204,113,.08)":"transparent",border:isToday?`1px solid rgba(46,204,113,.2)`:"none"}}>
+                    <div style={{width:20,fontSize:10,color:isToday?C.accent:C.dimmer,fontWeight:isToday?700:400,flexShrink:0,textAlign:"center"}}>{isToday?"Сег":dayStr}</div>
+                    <div style={{width:48,fontSize:10,color:C.muted,flexShrink:0}}>{dateStr}</div>
+                    <div style={{fontSize:17,flexShrink:0}}>{m.ico}</div>
+                    <div style={{flex:1,fontSize:10,color:C.dimmer,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.tip.split(" — ")[0]}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:scoreColor(sc),flexShrink:0,width:32,textAlign:"right"}}>{sc}/10</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{fontSize:9,color:C.dimmer,marginTop:8,textAlign:"center"}}>Оценка клёва по фазе луны · 10 = максимум активности</div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

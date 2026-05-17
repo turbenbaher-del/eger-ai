@@ -140,5 +140,27 @@ service cloud.firestore {
       allow create: if isAuth() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
+
+    // Барахолка (объявления)
+    match /classifieds/{docId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && validString(request.resource.data.title, 200)
+        && validString(request.resource.data.contact, 100);
+      allow delete: if isAuth() && resource.data.userId == request.auth.uid;
+      allow update: if false;
+    }
+
+    // Настройки уведомлений
+    match /notification_prefs/{userId} {
+      allow read, write: if isAuth() && isOwner(userId);
+    }
+
+    // Кэш давления для push-уведомлений (только Cloud Functions)
+    match /_meta/{docId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
   }
 }
